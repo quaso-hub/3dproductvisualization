@@ -126,7 +126,14 @@ export function AssembledPanel3D() {
       const panelWidth = 120; // 1200mm
       const panelHeight = 300; // 3000mm
       
-      const totalThickness = LAYERS.reduce((sum, layer) => sum + layer.thickness, 0);
+      // SCALE UP thin layers for visibility
+      const visualThickness = LAYERS.map(layer => {
+        if (layer.thickness < 1) return layer.thickness * 20; // Scale up very thin layers
+        if (layer.thickness < 5) return layer.thickness * 8;  // Scale up thin layers
+        return layer.thickness; // Keep thick layers as is
+      });
+      
+      const totalThickness = visualThickness.reduce((sum, t) => sum + t, 0);
 
       // Create panel group
       const panelGroup = new THREE.Group();
@@ -135,10 +142,12 @@ export function AssembledPanel3D() {
 
       // Build layers with more realistic materials
       LAYERS.forEach((layer, index) => {
+        const thickness = visualThickness[index];
+        
         const geometry = new THREE.BoxGeometry(
           panelWidth,
           panelHeight,
-          layer.thickness
+          thickness
         );
 
         const material = new THREE.MeshStandardMaterial({
@@ -150,7 +159,7 @@ export function AssembledPanel3D() {
         });
 
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.z = currentZ + layer.thickness / 2;
+        mesh.position.z = currentZ + thickness / 2;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         
@@ -160,14 +169,14 @@ export function AssembledPanel3D() {
         const edges = new THREE.EdgesGeometry(geometry);
         const lineMaterial = new THREE.LineBasicMaterial({ 
           color: 0x000000, 
-          opacity: 0.08,
+          opacity: 0.15,
           transparent: true,
         });
         const line = new THREE.LineSegments(edges, lineMaterial);
-        line.position.z = currentZ + layer.thickness / 2;
+        line.position.z = currentZ + thickness / 2;
         panelGroup.add(line);
 
-        currentZ += layer.thickness;
+        currentZ += thickness;
       });
 
       scene.add(panelGroup);
@@ -175,21 +184,21 @@ export function AssembledPanel3D() {
       // Annotations - positioned to always be visible
       const annotationGroup = new THREE.Group();
 
-      function createTextTexture(text: string, width = 512, height = 128): THREE.Texture {
+      function createTextTexture(text: string, width = 800, height = 180): THREE.Texture {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d')!;
         canvas.width = width;
         canvas.height = height;
         
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.98)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
         
         ctx.fillStyle = '#000000';
-        ctx.font = 'bold 32px Arial';
+        ctx.font = 'bold 60px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(text, canvas.width / 2, canvas.height / 2);
@@ -198,42 +207,48 @@ export function AssembledPanel3D() {
         return texture;
       }
 
-      // Layer annotations - adjusted per layer thickness
+      // Layer annotations - with VERTICAL offset to prevent overlap
       let annotationZ = -totalThickness / 2;
-      const annotationOffsets = [80, 95, 88, 92, 85]; // Different offsets for each layer
+      const annotationOffsets = [
+        { horizontal: 100, vertical: 40 },    // Baja Dalam
+        { horizontal: 110, vertical: 0 },     // Core PIR (center reference)
+        { horizontal: 105, vertical: -25 },   // Timbal
+        { horizontal: 115, vertical: -50 },   // Coating HRP
+        { horizontal: 95, vertical: -80 }     // Baja Luar
+      ];
       
       LAYERS.forEach((layer, index) => {
-        const layerZ = annotationZ + layer.thickness / 2;
-        const lineLength = annotationOffsets[index];
+        const layerZ = annotationZ + visualThickness[index] / 2;
+        const offset = annotationOffsets[index];
         
         // Connection point on panel edge
-        const dotGeometry = new THREE.SphereGeometry(1.5, 16, 16);
-        const dotMaterial = new THREE.MeshBasicMaterial({ color: layer.color });
+        const dotGeometry = new THREE.SphereGeometry(3, 16, 16);
+        const dotMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
         const dot = new THREE.Mesh(dotGeometry, dotMaterial);
-        dot.position.set(panelWidth / 2 + 1, 0, layerZ);
+        dot.position.set(panelWidth / 2 + 2, 0, layerZ);
         annotationGroup.add(dot);
 
-        // Annotation line - varied lengths
+        // Annotation line - goes to different heights
         const lineGeometry = new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(panelWidth / 2 + 1, 0, layerZ),
-          new THREE.Vector3(panelWidth / 2 + lineLength, 0, layerZ)
+          new THREE.Vector3(panelWidth / 2 + 2, 0, layerZ),
+          new THREE.Vector3(panelWidth / 2 + offset.horizontal, offset.vertical, layerZ)
         ]);
-        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x333333, linewidth: 1.5 });
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2.5 });
         const annotationLine = new THREE.Line(lineGeometry, lineMaterial);
         annotationGroup.add(annotationLine);
 
-        // Text sprite
-        const textTexture = createTextTexture(layer.name, 600, 120);
+        // Text sprite - positioned at different heights
+        const textTexture = createTextTexture(layer.name, 850, 200);
         const spriteMaterial = new THREE.SpriteMaterial({ 
           map: textTexture,
           depthTest: false,
         });
         const sprite = new THREE.Sprite(spriteMaterial);
-        sprite.position.set(panelWidth / 2 + lineLength + 45, 0, layerZ);
-        sprite.scale.set(60, 14, 1);
+        sprite.position.set(panelWidth / 2 + offset.horizontal + 70, offset.vertical, layerZ);
+        sprite.scale.set(100, 22, 1);
         annotationGroup.add(sprite);
 
-        annotationZ += layer.thickness;
+        annotationZ += visualThickness[index];
       });
 
       scene.add(annotationGroup);

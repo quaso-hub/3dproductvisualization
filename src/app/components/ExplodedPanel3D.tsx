@@ -125,7 +125,14 @@ export function ExplodedPanel3D() {
       // WIDER explosion gap for better separation
       const explosionGap = 80;
       
-      const totalThickness = LAYERS.reduce((sum, layer) => sum + layer.thickness, 0);
+      // SCALE UP thin layers for visibility
+      const visualThickness = LAYERS.map(layer => {
+        if (layer.thickness < 1) return layer.thickness * 20; // Scale up very thin layers
+        if (layer.thickness < 5) return layer.thickness * 8;  // Scale up thin layers
+        return layer.thickness; // Keep thick layers as is
+      });
+      
+      const totalThickness = visualThickness.reduce((sum, t) => sum + t, 0);
 
       // Create panel group
       const panelGroup = new THREE.Group();
@@ -134,10 +141,12 @@ export function ExplodedPanel3D() {
 
       // Build exploded layers
       LAYERS.forEach((layer, index) => {
+        const thickness = visualThickness[index];
+        
         const geometry = new THREE.BoxGeometry(
           panelWidth,
           panelHeight,
-          layer.thickness
+          thickness
         );
 
         const material = new THREE.MeshStandardMaterial({
@@ -150,7 +159,7 @@ export function ExplodedPanel3D() {
 
         const mesh = new THREE.Mesh(geometry, material);
         
-        const explodedZ = currentZ + layer.thickness / 2;
+        const explodedZ = currentZ + thickness / 2;
         mesh.position.z = explodedZ;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
@@ -161,7 +170,7 @@ export function ExplodedPanel3D() {
         const edges = new THREE.EdgesGeometry(geometry);
         const lineMaterial = new THREE.LineBasicMaterial({ 
           color: 0x000000, 
-          opacity: 0.08,
+          opacity: 0.15,
           transparent: true,
         });
         const line = new THREE.LineSegments(edges, lineMaterial);
@@ -170,7 +179,8 @@ export function ExplodedPanel3D() {
 
         // Connection lines between layers
         if (index < LAYERS.length - 1) {
-          const nextZ = currentZ + layer.thickness + explosionGap + LAYERS[index + 1].thickness / 2;
+          const nextThickness = visualThickness[index + 1];
+          const nextZ = currentZ + thickness + explosionGap + nextThickness / 2;
           
           // Dashed lines at corners
           const corners = [
@@ -182,8 +192,8 @@ export function ExplodedPanel3D() {
 
           corners.forEach(([x, y]) => {
             const lineGeom = new THREE.BufferGeometry().setFromPoints([
-              new THREE.Vector3(x, y, explodedZ + layer.thickness / 2),
-              new THREE.Vector3(x, y, nextZ - LAYERS[index + 1].thickness / 2)
+              new THREE.Vector3(x, y, explodedZ + thickness / 2),
+              new THREE.Vector3(x, y, nextZ - nextThickness / 2)
             ]);
             const dashedMaterial = new THREE.LineDashedMaterial({
               color: 0x999999,
@@ -199,7 +209,7 @@ export function ExplodedPanel3D() {
           });
         }
 
-        currentZ += layer.thickness + explosionGap;
+        currentZ += thickness + explosionGap;
       });
 
       scene.add(panelGroup);
@@ -207,21 +217,21 @@ export function ExplodedPanel3D() {
       // Annotations - positioned to always be visible
       const annotationGroup = new THREE.Group();
 
-      function createTextTexture(text: string, width = 512, height = 128): THREE.Texture {
+      function createTextTexture(text: string, width = 800, height = 180): THREE.Texture {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d')!;
         canvas.width = width;
         canvas.height = height;
         
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.98)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
         
         ctx.fillStyle = '#000000';
-        ctx.font = 'bold 36px Arial';
+        ctx.font = 'bold 60px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(text, canvas.width / 2, canvas.height / 2);
@@ -232,11 +242,12 @@ export function ExplodedPanel3D() {
 
       // Layer annotations
       let annotationZ = -totalThickness / 2 - (explosionGap * (LAYERS.length - 1)) / 2;
+      
       LAYERS.forEach((layer, index) => {
-        const explodedZ = annotationZ + layer.thickness / 2;
+        const explodedZ = annotationZ + visualThickness[index] / 2;
         
         // Connection point on panel edge
-        const dotGeometry = new THREE.SphereGeometry(2, 16, 16);
+        const dotGeometry = new THREE.SphereGeometry(3.5, 16, 16);
         const dotMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
         const dot = new THREE.Mesh(dotGeometry, dotMaterial);
         dot.position.set(panelWidth / 2 + 2, 0, explodedZ);
@@ -245,24 +256,24 @@ export function ExplodedPanel3D() {
         // Annotation line - longer for better visibility
         const lineGeometry = new THREE.BufferGeometry().setFromPoints([
           new THREE.Vector3(panelWidth / 2 + 2, 0, explodedZ),
-          new THREE.Vector3(panelWidth / 2 + 120, 0, explodedZ)
+          new THREE.Vector3(panelWidth / 2 + 140, 0, explodedZ)
         ]);
-        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2.5 });
         const annotationLine = new THREE.Line(lineGeometry, lineMaterial);
         annotationGroup.add(annotationLine);
 
         // Text sprite - positioned far enough
-        const textTexture = createTextTexture(layer.name, 600, 140);
+        const textTexture = createTextTexture(layer.name, 850, 200);
         const spriteMaterial = new THREE.SpriteMaterial({ 
           map: textTexture,
-          depthTest: false, // Always visible on top
+          depthTest: false,
         });
         const sprite = new THREE.Sprite(spriteMaterial);
-        sprite.position.set(panelWidth / 2 + 200, 0, explodedZ);
-        sprite.scale.set(70, 16, 1);
+        sprite.position.set(panelWidth / 2 + 230, 0, explodedZ);
+        sprite.scale.set(100, 23, 1);
         annotationGroup.add(sprite);
 
-        annotationZ += layer.thickness + explosionGap;
+        annotationZ += visualThickness[index] + explosionGap;
       });
 
       scene.add(annotationGroup);
