@@ -18,13 +18,13 @@
  */
 
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Product, CameraPreset } from '../data/products';
 import {
   applyCameraPreset, downloadPNG, createAnnotationFull, visualThickness,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
-import { HermeticDoorLegend } from './HermeticDoorLegend';
 
 interface Props { product: Product }
 
@@ -92,14 +92,21 @@ function createDashedCornerLines(
     ];
     const geo = new THREE.BufferGeometry().setFromPoints(pts);
     geo.computeLineDistances();
-    const line = new THREE.LineSegments(geo, lineMat);
+    const line = new THREE.Line(geo, lineMat);
     scene.add(line);
   });
 }
 
 // ─── Scene builder ────────────────────────────────────────────
 
-function buildExplodedScene(scene: THREE.Scene, layers: Product['layers']) {
+function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, layers: Product['layers']) {
+  // ── RoomEnvironment for realistic PBR reflections ────────────
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environment = envMap;
+  scene.background = new THREE.Color(0xf5f5f5);
+  pmrem.dispose();
+
   // Calculate visual thicknesses for first 5 layers (panel layers)
   const visualTs = layers.slice(0, 5).map((l) => visualThickness(l));
   const totalVisT = visualTs.reduce((s, t) => s + t, 0);
@@ -170,7 +177,7 @@ function buildExplodedScene(scene: THREE.Scene, layers: Product['layers']) {
     roughness: glassLayer.roughness,
     metalness: glassLayer.metalness,
     transparent: true,
-    opacity: 0.55,
+    opacity: 0.45,
     side: THREE.DoubleSide,
   });
 
@@ -232,7 +239,7 @@ export function HermeticDoorExploded3D({ product }: Props) {
       maxDistance: 1200,
     },
     onInit: (refs) => {
-      buildExplodedScene(refs.scene, product.layers);
+      buildExplodedScene(refs.scene, refs.renderer, product.layers);
     },
     deps: [product],
   });
@@ -247,9 +254,6 @@ export function HermeticDoorExploded3D({ product }: Props) {
       <ViewerControls presets={product.cameraPresets} onPreset={goTo} onDownload={dl} onDownloadAll={dlAll} />
       <div className="flex-1 min-h-0">
         <div ref={mountRef} className="w-full h-full" />
-      </div>
-      <div className="bg-gray-50 border-t border-gray-200 p-3">
-        <HermeticDoorLegend />
       </div>
     </div>
   );
