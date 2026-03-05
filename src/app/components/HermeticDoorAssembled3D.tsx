@@ -1,23 +1,19 @@
 /**
- * HermeticDoorAssembled3D.tsx — ASSEMBLED VIEW
+ * HermeticDoorAssembled3D.tsx — ASSEMBLED VIEW (Improved)
  * ─────────────────────────────────────────────────────────────
- * Hermetic Auto Sliding Door dalam posisi terpasang.
+ * Hermetic Auto Sliding Door in closed position, showing:
+ * - Brushed stainless steel with realistic material properties
+ * - Door frame and wall context
+ * - Overhead housing with motor detail
+ * - Sensor boxes on frame sides (in/out mounting)
+ * - Split annotations left/right for clarity
+ * - Material legend below viewer
  *
  * Koordinat sistem (world space):
  *   • Pintu dipusat di X=0, Y=105 (setengah tinggi 210)
  *   • Bagian bawah pintu di Y=0, atas di Y=210
  *   • Housing overhead di atas pintu: Y=210 ke Y=232
  *   • Ketebalan ke arah ±Z, dipusat di Z=0
- *
- * Komponen yang dirender:
- *   1. Frame dinding (alur pintu + kusen)
- *   2. Panel pintu utama (dengan lubang jendela)
- *   3. Kaca Lead Glass di lubang jendela
- *   4. Housing overhead (casing motor)
- *   5. Track rail di dalam housing
- *   6. Sensor indicator lights
- *   7. Handle pintu (kanan)
- *   8. Anotasi elbow-leader
  * ─────────────────────────────────────────────────────────────
  */
 
@@ -28,44 +24,58 @@ import {
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
+import { HermeticDoorLegend } from './HermeticDoorLegend';
 
 interface Props { product: Product }
 
 // ─── Dimensi pintu (scene units, 1 unit = 10mm) ──────────────
 const DW  = 160;  // lebar pintu
 const DH  = 210;  // tinggi pintu
-const DT  = 10;   // tebal panel pintu (visual, actual ~94mm)
+const DT  = 10;   // tebal panel pintu (visual)
 
 // Window dalam pintu
 const WW  = 30;   // lebar jendela
 const WH  = 40;   // tinggi jendela
 const WX  = 0;    // center X jendela
-const WY  = 150;  // Y bawah jendela (dari bottom of door)
+const WY  = 150;  // Y bawah jendela
 const WT  = 0.6;  // tebal kaca
 
 // Housing overhead
-const HW  = DW + 40;  // lebar housing (lebih lebar dari pintu)
+const HW  = DW + 50;  // lebar housing
 const HH  = 22;       // tinggi housing
-const HDT = 16;       // kedalaman housing (Z)
+const HDT = 16;       // kedalaman housing
 const HY  = DH + 2;   // Y bawah housing
 
 // Frame
-const FT  = 6;    // tebal frame (scene units)
+const FT  = 8;    // tebal frame (wider untuk realism)
+
+// Wall context
+const WALL_DEPTH = 50;
+const WALL_WIDTH = DW + FT * 4;
+const WALL_HEIGHT = DH + FT * 2;
 
 // ─── Materials ───────────────────────────────────────────────
 
-function matSS(roughness = 0.15) {
+function matSS(roughness = 0.08, metalness = 0.92) {
   return new THREE.MeshStandardMaterial({
-    color: 0xc8d4dc,
+    color: 0xd0dde6,  // Brushed stainless steel
     roughness,
-    metalness: 0.85,
-    envMapIntensity: 1.2,
+    metalness,
+    envMapIntensity: 1.5,  // Realistic reflections
+  });
+}
+
+function matWall() {
+  return new THREE.MeshStandardMaterial({
+    color: 0xd8dfe6,
+    roughness: 0.9,
+    metalness: 0.0,
   });
 }
 
 function matHousing() {
   return new THREE.MeshStandardMaterial({
-    color: 0xa8b8c4,
+    color: 0xb5c4d0,
     roughness: 0.25,
     metalness: 0.75,
   });
@@ -84,25 +94,25 @@ function matGlass() {
 
 function matLead() {
   return new THREE.MeshStandardMaterial({
-    color: 0x8a9198,
-    roughness: 0.4,
-    metalness: 0.7,
+    color: 0x7a7f85,
+    roughness: 0.35,
+    metalness: 0.75,
   });
 }
 
 function matFrame() {
   return new THREE.MeshStandardMaterial({
-    color: 0x606870,
+    color: 0x505860,
     roughness: 0.3,
-    metalness: 0.65,
+    metalness: 0.7,
   });
 }
 
-function matTrack() {
+function matSensor() {
   return new THREE.MeshStandardMaterial({
-    color: 0x505860,
-    roughness: 0.2,
-    metalness: 0.85,
+    color: 0x4a5568,
+    roughness: 0.4,
+    metalness: 0.6,
   });
 }
 
@@ -112,8 +122,8 @@ function buildDoorShape(): THREE.Shape {
   const half = DW / 2;
   const shape = new THREE.Shape();
   shape.moveTo(-half, 0);
-  shape.lineTo( half, 0);
-  shape.lineTo( half, DH);
+  shape.lineTo(half, 0);
+  shape.lineTo(half, DH);
   shape.lineTo(-half, DH);
   shape.closePath();
 
@@ -137,9 +147,19 @@ function buildDoorShape(): THREE.Shape {
 
 function buildScene(scene: THREE.Scene) {
 
-  // ── 1. Door frame (kusen) ──────────────────────────────────
-  // Bottom sill
+  // ── 0. Wall context (back plane) ───────────────────────────
+  const wallMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(WALL_WIDTH, WALL_HEIGHT, 2),
+    matWall(),
+  );
+  wallMesh.position.set(0, WALL_HEIGHT / 2 - FT, -WALL_DEPTH);
+  wallMesh.receiveShadow = true;
+  scene.add(wallMesh);
+
+  // ── 1. Door frame (kusen) ────────────────────────────────
   const frameMat = matFrame();
+
+  // Bottom sill
   const sill = new THREE.Mesh(
     new THREE.BoxGeometry(DW + FT * 2, FT, DT + 4),
     frameMat,
@@ -162,6 +182,15 @@ function buildScene(scene: THREE.Scene) {
   jambR.position.x = DW / 2 + FT / 2;
   scene.add(jambR);
 
+  // Head (top frame)
+  const head = new THREE.Mesh(
+    new THREE.BoxGeometry(DW + FT * 2, FT, DT + 4),
+    frameMat,
+  );
+  head.position.set(0, DH + FT / 2, 0);
+  head.castShadow = true;
+  scene.add(head);
+
   // ── 2. Door panel with window cutout ──────────────────────
   const doorGeo = new THREE.ExtrudeGeometry(buildDoorShape(), {
     depth: DT,
@@ -176,7 +205,7 @@ function buildScene(scene: THREE.Scene) {
   // Subtle edges
   scene.add(new THREE.LineSegments(
     new THREE.EdgesGeometry(doorGeo),
-    new THREE.LineBasicMaterial({ color: 0x182838, opacity: 0.15, transparent: true }),
+    new THREE.LineBasicMaterial({ color: 0x1a2332, opacity: 0.1, transparent: true }),
   ));
 
   // ── 3. Lead Glass in window cutout ───────────────────────
@@ -186,8 +215,8 @@ function buildScene(scene: THREE.Scene) {
   scene.add(glassMesh);
 
   // Glass frame (thin SS border around window)
-  const gfT = 1.2; // glass frame thickness
-  const glassFrMat = matSS(0.2);
+  const gfT = 1.2;
+  const glassFrMat = matSS(0.15);
   // top bar
   const gfTop = new THREE.Mesh(new THREE.BoxGeometry(WW + gfT * 2, gfT, DT * 0.4), glassFrMat);
   gfTop.position.set(WX, WY + WH + gfT / 2, 0);
@@ -205,38 +234,35 @@ function buildScene(scene: THREE.Scene) {
   gfRight.position.x = WX + WW / 2 + gfT / 2;
   scene.add(gfRight);
 
-  // ── 4. Pb lead strip visible at door edge (cross-section hint) ─
-  // Small lead stripe visible at the right side of door cross section
+  // ── 4. Pb lead strip (visible at top edge, full width) ─────
   const pbStripe = new THREE.Mesh(
-    new THREE.BoxGeometry(1.5, DH * 0.6, 2),
+    new THREE.BoxGeometry(DW - 4, 2.5, 2),
     matLead(),
   );
-  pbStripe.position.set(DW / 2 - 0.75, DH / 2, 0);
+  pbStripe.position.set(0, DH - 1.25, 0);
   scene.add(pbStripe);
 
-  // ── 5. Handle (right side) ────────────────────────────────
-  const handleMat = new THREE.MeshStandardMaterial({
-    color: 0xe0e8ec,
-    roughness: 0.1,
-    metalness: 0.92,
-  });
+  // ── 5. Horizontal D-handle (right side) ──────────────────
+  const handleMat = matSS(0.1, 0.94);
 
-  // Vertical bar
-  const barGeo = new THREE.CylinderGeometry(1.2, 1.2, 24, 16);
-  const bar = new THREE.Mesh(barGeo, handleMat);
-  bar.position.set(DW / 2 - 8, DH / 2, DT / 2 + 4);
-  scene.add(bar);
+  // Main handle bar (horizontal cylinder)
+  const handleGeo = new THREE.CylinderGeometry(0.8, 0.8, 18, 12);
+  const handleBar = new THREE.Mesh(handleGeo, handleMat);
+  handleBar.rotation.z = Math.PI / 2;
+  handleBar.position.set(DW / 2 - 10, DH / 2 + 3, DT / 2 + 3);
+  scene.add(handleBar);
 
-  // Top bracket
-  const bktGeo = new THREE.CylinderGeometry(1.0, 1.0, 8, 12);
-  const bktTop = new THREE.Mesh(bktGeo, handleMat);
-  bktTop.rotation.x = Math.PI / 2;
-  bktTop.position.set(DW / 2 - 8, DH / 2 + 10, DT / 2 + 0.5);
-  scene.add(bktTop);
+  // Left bracket mount
+  const bracketGeo = new THREE.CylinderGeometry(1.2, 1.2, 6, 12);
+  const bracketL = new THREE.Mesh(bracketGeo, handleMat);
+  bracketL.rotation.x = Math.PI / 2;
+  bracketL.position.set(DW / 2 - 19, DH / 2 + 3, DT / 2 + 1);
+  scene.add(bracketL);
 
-  const bktBot = bktTop.clone();
-  bktBot.position.y = DH / 2 - 10;
-  scene.add(bktBot);
+  // Right bracket mount
+  const bracketR = bracketL.clone();
+  bracketR.position.x = DW / 2 - 1;
+  scene.add(bracketR);
 
   // ── 6. Overhead housing ───────────────────────────────────
   const housingMat = matHousing();
@@ -248,23 +274,68 @@ function buildScene(scene: THREE.Scene) {
   housing.castShadow = true;
   scene.add(housing);
 
-  // Housing bottom face line (definition)
+  // Housing edge definition
   scene.add(new THREE.LineSegments(
     new THREE.EdgesGeometry(new THREE.BoxGeometry(HW, HH, HDT)),
-    new THREE.LineBasicMaterial({ color: 0x182838, opacity: 0.12, transparent: true }),
+    new THREE.LineBasicMaterial({ color: 0x1a2332, opacity: 0.1, transparent: true }),
   )).position.copy(housing.position);
 
-  // ── 7. Sliding track inside housing ──────────────────────
-  const track = new THREE.Mesh(
-    new THREE.BoxGeometry(HW - 10, 3, 3),
-    matTrack(),
-  );
+  // ── 6b. Housing motor detail (3 horizontal rib lines) ─────
+  const ribMat = new THREE.LineBasicMaterial({ color: 0x3a4350, opacity: 0.6, transparent: true, linewidth: 2 });
+  const ribYs = [HY + HH * 0.75, HY + HH * 0.5, HY + HH * 0.25];
+  ribYs.forEach((ribY) => {
+    const ribPts = [
+      new THREE.Vector3(-HW / 2 + 2, ribY, -(HDT - DT) / 2 + HDT / 2),
+      new THREE.Vector3(HW / 2 - 2, ribY, -(HDT - DT) / 2 + HDT / 2),
+    ];
+    const ribGeo = new THREE.BufferGeometry().setFromPoints(ribPts);
+    scene.add(new THREE.Line(ribGeo, ribMat));
+  });
+
+  // ── 6c. Housing indicator LED strip (front panel) ────────
+  const indicatorGeo = new THREE.BoxGeometry(HW - 4, 2, 0.2);
+  const indicatorMat = new THREE.MeshStandardMaterial({
+    color: 0x3a4350,
+    roughness: 0.5,
+    metalness: 0.4,
+    emissive: 0x1a1f2e,
+  });
+  const indicator = new THREE.Mesh(indicatorGeo, indicatorMat);
+  indicator.position.set(0, HY + HH * 0.88, -(HDT - DT) / 2 + HDT / 2 + 0.1);
+  scene.add(indicator);
+
+  // ── 7. Sensor boxes (left/right of frame) ────────────────
+  const sensorGeo = new THREE.BoxGeometry(4, 8, 3);
+  const sensorMat = matSensor();
+
+  // Left sensor (in room)
+  const sensorL = new THREE.Mesh(sensorGeo, sensorMat);
+  sensorL.position.set(-DW / 2 - 14, DH / 2, -12);
+  scene.add(sensorL);
+
+  // Right sensor (out room)
+  const sensorR = sensorL.clone();
+  sensorR.position.x = DW / 2 + 14;
+  scene.add(sensorR);
+
+  // ── 8. Sliding track inside housing ──────────────────────
+  const trackGeo = new THREE.BoxGeometry(HW - 10, 3, 3);
+  const trackMat = new THREE.MeshStandardMaterial({
+    color: 0x404850,
+    roughness: 0.15,
+    metalness: 0.9,
+  });
+  const track = new THREE.Mesh(trackGeo, trackMat);
   track.position.set(0, HY + HH * 0.3, -(HDT - DT) / 2 - 2);
   scene.add(track);
 
   // Track wheels (rollers)
   const rollerGeo = new THREE.CylinderGeometry(2, 2, 3, 16);
-  const rollerMat = new THREE.MeshStandardMaterial({ color: 0x303840, roughness: 0.1, metalness: 0.9 });
+  const rollerMat = new THREE.MeshStandardMaterial({
+    color: 0x303840,
+    roughness: 0.1,
+    metalness: 0.92,
+  });
   [-30, 0, 30].forEach((xOff) => {
     const roller = new THREE.Mesh(rollerGeo, rollerMat);
     roller.rotation.x = Math.PI / 2;
@@ -272,71 +343,82 @@ function buildScene(scene: THREE.Scene) {
     scene.add(roller);
   });
 
-  // ── 8. Sensor lights on housing front face ────────────────
-  const sensorGeoGreen = new THREE.SphereGeometry(1.6, 12, 8);
-  const sensorGeoAmber = new THREE.SphereGeometry(1.6, 12, 8);
-  const matGreen = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.2, metalness: 0.1, emissive: 0x16a34a, emissiveIntensity: 0.6 });
-  const matAmber = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.2, metalness: 0.1, emissive: 0xd97706, emissiveIntensity: 0.5 });
+  // ── 9. Sensor indicator lights (front face, left side) ─────
+  const sensorGeoGreen = new THREE.SphereGeometry(1.4, 12, 8);
+  const sensorGeoAmber = new THREE.SphereGeometry(1.4, 12, 8);
+  const matGreen = new THREE.MeshStandardMaterial({
+    color: 0x22c55e,
+    roughness: 0.2,
+    metalness: 0.1,
+    emissive: 0x16a34a,
+    emissiveIntensity: 0.5,
+  });
+  const matAmber = new THREE.MeshStandardMaterial({
+    color: 0xf59e0b,
+    roughness: 0.2,
+    metalness: 0.1,
+    emissive: 0xd97706,
+    emissiveIntensity: 0.4,
+  });
 
   const sensorFaceZ = -(HDT - DT) / 2 + HDT / 2 + 0.1;
-  const sensorY    = HY + HH * 0.68;
+  const sensorY = HY + HH * 0.55;
 
-  // Green indicator (open/ready)
+  // Green indicator
   const sGreen = new THREE.Mesh(sensorGeoGreen, matGreen);
-  sGreen.position.set(-HW / 2 + 12, sensorY, sensorFaceZ);
+  sGreen.position.set(-HW / 2 + 10, sensorY, sensorFaceZ);
   scene.add(sGreen);
 
   // Amber indicator
   const sAmber = new THREE.Mesh(sensorGeoAmber, matAmber);
-  sAmber.position.set(-HW / 2 + 20, sensorY, sensorFaceZ);
+  sAmber.position.set(-HW / 2 + 18, sensorY, sensorFaceZ);
   scene.add(sAmber);
 
-  // Red (off) indicator
-  const matRed = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.2, metalness: 0.1 });
-  const sRed = new THREE.Mesh(new THREE.SphereGeometry(1.6, 12, 8), matRed);
-  sRed.position.set(-HW / 2 + 28, sensorY, sensorFaceZ);
-  scene.add(sRed);
+  // ── 10. Annotations (split left/right, no overlap) ────────
+  const zA = 0;  // front face slice
 
-  // ── 9. Annotations ────────────────────────────────────────
-  // All labels on right side (+X), elbow to the right
-  const zA  = 0;          // front face slice
-  const xL  = DW / 2 + 70; // label X position
-
-  const Ys = [DH + 40, DH + 20, DH, DH - 20, DH - 40, DH - 70, DH - 100];
+  // RIGHT SIDE annotations (xR = DW/2 + 75)
+  const xR = DW / 2 + 75;
+  const YsR = [DH + 55, DH + 25, DH - 10, WY + WH / 2 + 20];
 
   createAnnotationFull(scene,
     new THREE.Vector3(0, HY + HH / 2, zA),
-    new THREE.Vector3(xL, Ys[0], zA),
+    new THREE.Vector3(xR, YsR[0], zA),
     'Electric Motor Housing',
   );
   createAnnotationFull(scene,
     new THREE.Vector3(0, HY + HH * 0.3, zA),
-    new THREE.Vector3(xL, Ys[1], zA),
+    new THREE.Vector3(xR, YsR[1], zA),
     'Sliding Track Rail',
   );
   createAnnotationFull(scene,
-    new THREE.Vector3(-HW / 2 + 20, sensorY, zA),
-    new THREE.Vector3(xL, Ys[2], zA),
+    new THREE.Vector3(-HW / 2 + 14, sensorY, zA),
+    new THREE.Vector3(xR, YsR[2], zA),
     'Sensor Indicator',
   );
   createAnnotationFull(scene,
-    new THREE.Vector3(DW / 2, DH * 0.75, zA),
-    new THREE.Vector3(xL, Ys[3], zA),
+    new THREE.Vector3(WX + WW / 2, WY + WH / 2, zA),
+    new THREE.Vector3(xR, YsR[3], zA),
+    'Lead Glass Pb 5mm',
+  );
+
+  // LEFT SIDE annotations (xL = -DW/2 - 75)
+  const xL = -DW / 2 - 75;
+  const YsL = [DH * 0.75, DH * 0.50, DH * 0.25];
+
+  createAnnotationFull(scene,
+    new THREE.Vector3(-DW / 2, DH * 0.5, zA),
+    new THREE.Vector3(xL, YsL[0], zA),
     'Stainless Steel',
   );
   createAnnotationFull(scene,
-    new THREE.Vector3(WX + WW / 2, WY + WH / 2, zA),
-    new THREE.Vector3(xL, Ys[4], zA),
-    'Lead Glass Pb 5mm',
-  );
-  createAnnotationFull(scene,
-    new THREE.Vector3(DW / 2 - 0.75, DH / 2, zA),
-    new THREE.Vector3(xL, Ys[5], zA),
+    new THREE.Vector3(0, DH - 1.25, zA),
+    new THREE.Vector3(xL, YsL[1], zA),
     'Lapis Pb 2mm',
   );
   createAnnotationFull(scene,
-    new THREE.Vector3(DW / 2 - 8, DH / 2, zA),
-    new THREE.Vector3(xL, Ys[6], zA),
+    new THREE.Vector3(DW / 2 - 10, DH / 2 + 3, zA),
+    new THREE.Vector3(xL, YsL[2], zA),
     'Handle SS',
   );
 }
@@ -366,6 +448,9 @@ export function HermeticDoorAssembled3D({ product }: Props) {
       <ViewerControls presets={product.cameraPresets} onPreset={goTo} onDownload={dl} onDownloadAll={dlAll} />
       <div className="flex-1 min-h-0">
         <div ref={mountRef} className="w-full h-full" />
+      </div>
+      <div className="bg-gray-50 border-t border-gray-200 p-3">
+        <HermeticDoorLegend />
       </div>
     </div>
   );

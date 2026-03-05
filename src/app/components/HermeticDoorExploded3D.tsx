@@ -1,8 +1,9 @@
 /**
- * HermeticDoorExploded3D.tsx — EXPLODED VIEW
+ * HermeticDoorExploded3D.tsx — EXPLODED VIEW (Improved)
  * ─────────────────────────────────────────────────────────────
  * Cross-section panel pintu Hermetic dipisah per lapisan,
  * ditampilkan dalam susunan Z dengan gap antar lapisan.
+ * Anotasi diperbaiki: setiap label selaras dengan Z-nya layer.
  *
  * Urutan layer (luar → dalam, arah +Z):
  *   0. SS Face (luar)
@@ -10,9 +11,9 @@
  *   2. Timbal (Pb) 2mm
  *   3. PIR Foam Core
  *   4. SS Face (dalam)
- *   5. Kaca Pb (Lead Glass) — diposisikan di area jendela
+ *   5. Kaca Pb (Lead Glass) — setelah layer 4 dengan gap
  *
- * Anotasi: elbow-leader ke sisi kanan (+X)
+ * Dashed corner connector lines menunjukkan layer relationship.
  * ─────────────────────────────────────────────────────────────
  */
 
@@ -23,13 +24,14 @@ import {
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
+import { HermeticDoorLegend } from './HermeticDoorLegend';
 
 interface Props { product: Product }
 
 // ─── Dimensi panel (sama dengan assembled) ───────────────────
 const DW = 160;
 const DH = 210;
-const EXPLOSION_GAP = 28;
+const EXPLOSION_GAP = 35;  // Wider gap untuk clarity
 
 // Window
 const WW = 30;
@@ -43,8 +45,8 @@ function buildDoorShape(): THREE.Shape {
   const half = DW / 2;
   const shape = new THREE.Shape();
   shape.moveTo(-half, 0);
-  shape.lineTo( half, 0);
-  shape.lineTo( half, DH);
+  shape.lineTo(half, 0);
+  shape.lineTo(half, DH);
   shape.lineTo(-half, DH);
   shape.closePath();
 
@@ -59,10 +61,46 @@ function buildDoorShape(): THREE.Shape {
   return shape;
 }
 
+// ─── Dashed connector lines helper ────────────────────────────
+
+function createDashedCornerLines(
+  scene: THREE.Scene,
+  layer: Product['layers'][number],
+  zStart: number,
+  zEnd: number,
+) {
+  const corners = [
+    [-DW / 2, 0],
+    [DW / 2, 0],
+    [DW / 2, DH],
+    [-DW / 2, DH],
+  ];
+
+  const lineMat = new THREE.LineDashedMaterial({
+    color: 0x9ca3af,
+    linewidth: 1,
+    dashSize: 6,
+    gapSize: 4,
+    opacity: 0.4,
+    transparent: true,
+  });
+
+  corners.forEach(([x, y]) => {
+    const pts = [
+      new THREE.Vector3(x, y, zStart),
+      new THREE.Vector3(x, y, zEnd),
+    ];
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    geo.computeLineDistances();
+    const line = new THREE.LineSegments(geo, lineMat);
+    scene.add(line);
+  });
+}
+
 // ─── Scene builder ────────────────────────────────────────────
 
 function buildExplodedScene(scene: THREE.Scene, layers: Product['layers']) {
-  // Calculate visual thicknesses
+  // Calculate visual thicknesses for first 5 layers (panel layers)
   const visualTs = layers.slice(0, 5).map((l) => visualThickness(l));
   const totalVisT = visualTs.reduce((s, t) => s + t, 0);
   const totalSpan = totalVisT + EXPLOSION_GAP * (visualTs.length - 1);
@@ -70,9 +108,10 @@ function buildExplodedScene(scene: THREE.Scene, layers: Product['layers']) {
   // Center the stack at Z=0
   let currentZ = -totalSpan / 2;
 
-  const xL  = DW / 2 + 70;  // label X
-  const annotZ = 0;          // annotation Z slice (center, will be overridden per layer)
+  const xL = DW / 2 + 75;  // label X position (right side)
+  const annotZ = 0;         // annotation label Z (front plane)
 
+  // ── Panel layers (0-4) ────────────────────────────────────
   layers.slice(0, 5).forEach((layer, i) => {
     const vt = visualTs[i];
 
@@ -81,7 +120,7 @@ function buildExplodedScene(scene: THREE.Scene, layers: Product['layers']) {
       depth: vt,
       bevelEnabled: false,
     });
-    geo.translate(0, 0, 0); // front face at Z=0 of local geo
+    geo.translate(0, 0, 0);
 
     const mat = new THREE.MeshStandardMaterial({
       color: layer.color,
@@ -98,28 +137,33 @@ function buildExplodedScene(scene: THREE.Scene, layers: Product['layers']) {
     // Edge outlines
     const edges = new THREE.LineSegments(
       new THREE.EdgesGeometry(geo),
-      new THREE.LineBasicMaterial({ color: 0x182838, opacity: 0.15, transparent: true }),
+      new THREE.LineBasicMaterial({ color: 0x1a2332, opacity: 0.12, transparent: true }),
     );
     edges.position.z = currentZ;
     scene.add(edges);
 
-    // Annotation: anchor at right-center of this layer slab
+    // Dashed corner connector lines (connect this layer to next)
+    if (i < 4) {  // Don't draw for last panel layer
+      createDashedCornerLines(scene, layer, currentZ + vt / 2, currentZ + vt + EXPLOSION_GAP - vt / 2);
+    }
+
+    // Annotation: anchor at right-center of this layer slab, but label at same Z as layer
     const layerCenterZ = currentZ + vt / 2;
-    const annotY = [DH * 0.82, DH * 0.65, DH * 0.5, DH * 0.35, DH * 0.18];
+    const annotYValues = [DH * 0.88, DH * 0.70, DH * 0.52, DH * 0.34, DH * 0.16];
 
     createAnnotationFull(scene,
-      new THREE.Vector3(DW / 2, annotY[i], layerCenterZ),
-      new THREE.Vector3(xL, annotY[i], annotZ),
+      new THREE.Vector3(DW / 2, annotYValues[i], layerCenterZ),
+      new THREE.Vector3(xL, annotYValues[i], layerCenterZ),  // Label Z = layer Z (co-planar)
       `${layer.name} (${layer.thickness}mm)`,
     );
 
     currentZ += vt + EXPLOSION_GAP;
   });
 
-  // ── Lead Glass (layer[5]) — floating at window position ──
+  // ── Lead Glass (layer[5]) — positioned after last panel layer ──
   const glassLayer = layers[5];
   const glassVT = Math.max(visualThickness(glassLayer), 3);
-  const glassZ  = 0; // float at center of the stack
+  const glassZ = currentZ;  // After last panel layer
 
   const glassMat = new THREE.MeshStandardMaterial({
     color: glassLayer.color,
@@ -141,24 +185,38 @@ function buildExplodedScene(scene: THREE.Scene, layers: Product['layers']) {
     new THREE.LineBasicMaterial({ color: 0x0284c7, opacity: 0.4, transparent: true }),
   )).position.copy(glassMesh.position);
 
-  // Glass annotation
+  // Glass annotation (at same Z as glass)
   createAnnotationFull(scene,
     new THREE.Vector3(WX + WW / 2, WY + WH * 0.7, glassZ),
-    new THREE.Vector3(xL, DH * 0.6, annotZ),
-    `${glassLayer.name}`,
+    new THREE.Vector3(xL, DH * 0.05, glassZ),  // Label Z = glass Z
+    `${glassLayer.name} (${glassLayer.thickness}mm)`,
   );
 
-  // ── Dimension indicator: total thickness arrow ────────────
-  const arrowMat = new THREE.LineBasicMaterial({ color: 0x374151, opacity: 0.5, transparent: true });
+  // ── Dimension indicator: total thickness arrow + tick marks ──
+  const arrowMat = new THREE.LineBasicMaterial({ color: 0x374151, opacity: 0.6, transparent: true, linewidth: 2 });
+  const totalThickness = -totalSpan / 2;
+  const finalThickness = currentZ + glassVT / 2;
+
   const arrowPts = [
-    new THREE.Vector3(-DW / 2 - 20, DH * 0.5, -totalSpan / 2),
-    new THREE.Vector3(-DW / 2 - 20, DH * 0.5,  totalSpan / 2),
+    new THREE.Vector3(-DW / 2 - 25, DH * 0.5, totalThickness),
+    new THREE.Vector3(-DW / 2 - 25, DH * 0.5, finalThickness),
   ];
   const arrowGeo = new THREE.BufferGeometry().setFromPoints(arrowPts);
   scene.add(new THREE.Line(arrowGeo, arrowMat));
 
+  // Tick marks at start and end
+  const tickH = 5;
+  [totalThickness, finalThickness].forEach((zPos) => {
+    const tickPts = [
+      new THREE.Vector3(-DW / 2 - 27, DH * 0.5 - tickH / 2, zPos),
+      new THREE.Vector3(-DW / 2 - 23, DH * 0.5 - tickH / 2, zPos),
+    ];
+    const tickGeo = new THREE.BufferGeometry().setFromPoints(tickPts);
+    scene.add(new THREE.Line(tickGeo, arrowMat));
+  });
+
   createAnnotationFull(scene,
-    new THREE.Vector3(-DW / 2 - 20, DH * 0.5, 0),
+    new THREE.Vector3(-DW / 2 - 25, DH * 0.5, 0),
     new THREE.Vector3(-DW / 2 - 80, DH * 0.5, 0),
     `Tebal Total: ~94mm`,
   );
@@ -189,6 +247,9 @@ export function HermeticDoorExploded3D({ product }: Props) {
       <ViewerControls presets={product.cameraPresets} onPreset={goTo} onDownload={dl} onDownloadAll={dlAll} />
       <div className="flex-1 min-h-0">
         <div ref={mountRef} className="w-full h-full" />
+      </div>
+      <div className="bg-gray-50 border-t border-gray-200 p-3">
+        <HermeticDoorLegend />
       </div>
     </div>
   );
