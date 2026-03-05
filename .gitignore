@@ -9,7 +9,7 @@ dist-ssr/
 .vite/
 
 # Editor
-.vscode/
+# .vscode/ dikecualikan dari ignore agar settings.json ter-track
 .idea/
 *.suo
 *.ntvs*

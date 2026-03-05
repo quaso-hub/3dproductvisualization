@@ -1,0 +1,18 @@
+{
+    "git.ignoreLimitWarning": true,
+
+    // Sembunyikan node_modules & dist dari Source Control panel VS Code
+    "files.watcherExclude": {
+        "**/node_modules/**": true,
+        "**/dist/**": true,
+        "**/.git/objects/**": true
+    },
+    "files.exclude": {
+        "**/node_modules": true,
+        "**/dist": true
+    },
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/dist": true
+    }
+}
