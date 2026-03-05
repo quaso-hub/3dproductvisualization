@@ -15,6 +15,7 @@ import sandwichRadiasi  from './sandwich-radiasi';
 import sandwichStandard from './sandwich-standard';
 import cleanroom        from './cleanroom';
 import curvingR40       from './curving';
+import hermeticDoor    from './hermetic-door';
 // import plafonSteel   from './plafon-steel';   // ← tambah di sini
 
 export const PRODUCTS: Product[] = [
@@ -22,6 +23,7 @@ export const PRODUCTS: Product[] = [
   sandwichStandard,
   cleanroom,
   curvingR40,
+  hermeticDoor,
   // plafonSteel,
 ];
 

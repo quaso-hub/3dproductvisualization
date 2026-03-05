@@ -10,6 +10,8 @@ import { AssembledPanel3D } from './AssembledPanel3D';
 import { ExplodedPanel3D }  from './ExplodedPanel3D';
 import { CurvingAssembled3D } from './CurvingAssembled3D';
 import { CurvingExploded3D }  from './CurvingExploded3D';
+import { HermeticDoorAssembled3D } from './HermeticDoorAssembled3D';
+import { HermeticDoorExploded3D }  from './HermeticDoorExploded3D';
 
 interface Props { product: Product }
 
@@ -114,6 +116,15 @@ export function ProductViewer({ product }: Props) {
             )}
             {activeView === 'exploded' && (
               <CurvingExploded3D key={`curving-exploded-${product.id}`} product={product} />
+            )}
+          </>
+        ) : product.viewerType === 'hermetic-door' ? (
+          <>
+            {activeView === 'assembled' && (
+              <HermeticDoorAssembled3D key={`hermetic-assembled-${product.id}`} product={product} />
+            )}
+            {activeView === 'exploded' && (
+              <HermeticDoorExploded3D key={`hermetic-exploded-${product.id}`} product={product} />
             )}
           </>
         ) : (

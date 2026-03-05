@@ -73,10 +73,11 @@ export interface Product {
   views: ViewType[];
   /**
    * Tipe renderer 3D.
-   * 'panel'   = flat sandwich panel (default, AssembledPanel3D / ExplodedPanel3D)
-   * 'curving' = profil-L aluminium dengan radius (CurvingAssembled3D / CurvingExploded3D)
+   * 'panel'         = flat sandwich panel (default, AssembledPanel3D / ExplodedPanel3D)
+   * 'curving'       = profil-L aluminium dengan radius (CurvingAssembled3D / CurvingExploded3D)
+   * 'hermetic-door' = pintu geser otomatis hermetic (HermeticDoorAssembled3D / HermeticDoorExploded3D)
    */
-  viewerType?: 'panel' | 'curving';
+  viewerType?: 'panel' | 'curving' | 'hermetic-door';
   layers: Layer[];
   dimensions: PanelDimensions;
   specs: ProductSpec[];
