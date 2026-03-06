@@ -239,6 +239,43 @@ annotList.forEach(({ pos, label }) => {
 
 ---
 
+## Skills to Always Activate
+
+When working on this codebase, **always load the relevant skills** before coding.
+Skills live in `C:\Users\warma\.claude\skills\` (Claude Code) and `C:\Users\warma\.gemini\antigravity\skills\` (Gemini/other agents).
+
+### 3D / Three.js Work
+| Task | Skill |
+|------|-------|
+| Any Three.js scene, geometry, renderer | `@threejs-skills` |
+| 3D product configurator, interactive 3D, WebGL | `@3d-web-experience` |
+| GLSL shaders, custom materials, post-processing | `@shader-programming-glsl` |
+
+### UI / Design Work
+| Task | Skill |
+|------|-------|
+| Building or styling any React component / page | `@frontend-design` |
+| Color palettes, typography, UX patterns, a11y audit | `@ui-ux-pro-max` |
+| Web accessibility & UI compliance review | `@web-design-guidelines` |
+| Creating UI screens in Google Stitch | `@stitch-ui-design` |
+| Creating poster / static visual art (PNG/PDF) | `@canvas-design` |
+| Synthesizing DESIGN.md from Stitch project | `@design-md` |
+| Orchestrating multi-step design workflow | `@design-orchestration` |
+
+### Code Quality
+| Task | Skill |
+|------|-------|
+| React / Next.js performance review | `@react-best-practices` |
+| TypeScript types, patterns, strict mode | `@typescript-expert` |
+
+### When to use multiple skills
+- New 3D viewer component → `@threejs-skills` + `@3d-web-experience` + `@frontend-design`
+- UI overhaul / redesign → `@ui-ux-pro-max` + `@frontend-design` + `@web-design-guidelines`
+- Shader / custom material → `@shader-programming-glsl` + `@threejs-skills`
+- Stitch design → `@stitch-ui-design` + `@design-md` + `@design-orchestration`
+
+---
+
 ## Conventions
 - All UI text and specs in **Indonesian**
 - No auto-rotation — manual OrbitControls only
