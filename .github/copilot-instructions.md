@@ -1,12 +1,12 @@
 # 3D Product Catalog - AI Coding Instructions
 
 ## Project Overview
-React + Three.js + TypeScript — print-quality 3D visualizations of medical facility sandwich panels.
+React + Three.js + TypeScript — print-quality 3D visualizations of medical facility building products.
 `npm run dev` (Vite, port 5173/5174) | `npm run build`
 
 ---
 
-## Architecture (as of 2026-03-04)
+## Architecture (as of 2026-03-06)
 
 ```
 src/app/
@@ -14,166 +14,246 @@ src/app/
     products.ts          ← TYPE DEFINITIONS only (Layer, Product, ViewType, etc.)
   products/
     index.ts             ← PRODUCT REGISTRY — only file to edit when adding a product
-    sandwich-radiasi.ts  ← Individual product file
-    sandwich-standard.ts ← Individual product file
-    cleanroom.ts         ← Individual product file
+    sandwich-radiasi.ts
+    sandwich-standard.ts
+    cleanroom.ts
+    hermetic-door.ts     ← Custom viewerType: 'hermetic-door'
+    curving-r40.ts       ← Custom viewerType: 'curving'
   lib/
     three-scene.ts       ← SHARED Three.js engine (renderer, lights, controls, helpers)
+  hooks/
+    useThreeScene.ts     ← Scene lifecycle hook (init on mount, dispose on unmount)
   components/
-    Sidebar.tsx          ← Left nav (260px), category grouping, search
-    ProductViewer.tsx    ← Orchestrator: tabs per product.views, spec panel
-    AssembledPanel3D.tsx ← 3D assembled view  (uses lib/three-scene)
-    ExplodedPanel3D.tsx  ← 3D exploded view   (uses lib/three-scene)
-    WallPanelViewer.tsx  ← Legacy 2D canvas viewer (standalone, untouched)
+    Sidebar.tsx                  ← Left nav (260px), category grouping, search
+    ProductViewer.tsx            ← Orchestrator: routes viewerType, tabs per product.views
+    AssembledPanel3D.tsx         ← Default assembled view (panel products)
+    ExplodedPanel3D.tsx          ← Default exploded view (panel products)
+    CurvingAssembled3D.tsx       ← Curving R40 assembled
+    CurvingExploded3D.tsx        ← Curving R40 exploded
+    HermeticDoorAssembled3D.tsx  ← Hermetic door assembled (D-profile housing)
+    HermeticDoorExploded3D.tsx   ← Hermetic door exploded (panel layers)
+    HermeticDoorLegend.tsx       ← Color swatches (standalone, not inside viewer)
+    ViewerControls.tsx           ← Reusable camera preset + download bar
+    WallPanelViewer.tsx          ← Legacy 2D canvas viewer (do not touch)
   App.tsx                ← Shell layout: flex h-screen Sidebar + main
 ```
 
 ---
 
-## Adding a New Product (THE ONLY WORKFLOW)
+## Scale Convention
 
-1. Create `src/app/products/<slug>.ts`:
+**1 scene unit ≈ 10mm**
+- Door 1600×2100mm → `DW=160, DH=210`
+- Panel 1200mm wide → `sceneWidth=120`
+- Always store real-world mm in product data; scale only in viewer code
+
+---
+
+## Adding a Standard Panel Product
+
+1. Create `src/app/products/<slug>.ts` (no `viewerType` field = default panel viewer):
 
 ```typescript
 import type { Product } from '../data/products';
-
 const MY_PANEL: Product = {
-  id: 'my-panel',           // unique slug — used in download filenames
-  name: 'Nama Singkat',     // shown in sidebar
+  id: 'my-panel',
+  name: 'Nama Singkat',
   fullName: 'Nama Lengkap',
   description: '...',
-  category: 'Panel Dinding', // 'Panel Dinding' | 'Cleanroom' | 'Plafon' | 'Lantai' | 'Pintu & Partisi' | 'Lainnya'
-  badge: 'Label',            // optional
-  badgeColor: 'bg-green-100 text-green-700', // optional Tailwind pair
-  views: ['assembled', 'exploded'], // omit 'exploded' if not needed
+  category: 'Panel Dinding',
+  views: ['assembled', 'exploded'],
   layers: [
     { name: 'Baja AZ100', thickness: 0.5, color: 0xc0ced8, roughness: 0.2, metalness: 0.8 },
-    // up to N layers — use real-world mm values, scaling is automatic
   ],
   dimensions: { widthMm: 1200, heightMm: 3000, sceneWidth: 120, sceneHeight: 300 },
   specs: [{ label: 'Aplikasi', value: 'Ruang Operasi' }],
   cameraPresets: [
     { name: 'Front Isometric', position: [250, 180, 350], target: [0, 0, 0] },
-    { name: 'Side Detail',     position: [400, 100, 50],  target: [0, 0, 0] },
-    { name: 'Top View',        position: [0, 450, 0],     target: [0, 0, 0] },
-    { name: 'Layer Detail',    position: [150, 80, 280],  target: [0, 0, 0] },
-    { name: 'Front Elevation', position: [0, 0, 400],     target: [0, 0, 0] },
-    { name: 'Side Elevation',  position: [400, 0, 0],     target: [0, 0, 0] },
   ],
   assembledCameraStart: [250, 180, 350],
   explodedCameraStart:  [350, 200, 450],
 };
-
 export default MY_PANEL;
 ```
 
-2. Register in `src/app/products/index.ts`:
-```typescript
-import myPanel from './my-panel';
-export const PRODUCTS: Product[] = [ ..., myPanel ];
-```
+2. Register in `src/app/products/index.ts`. **No other files need changing.**
 
-**No other files need to be changed.**
+---
+
+## Adding a Custom Viewer Type
+
+For products that need their own 3D scene (not a panel layer stack):
+
+1. Add literal to `viewerType` union in `src/app/data/products.ts`
+2. Add `viewerType: 'my-type'` to product file
+3. Create `src/app/components/MyTypeAssembled3D.tsx` and `MyTypeExploded3D.tsx`
+4. Add routing in `src/app/components/ProductViewer.tsx`
+5. Register product in `src/app/products/index.ts`
+
+**Reference:** `hermetic-door` product + `HermeticDoorAssembled3D.tsx`
 
 ---
 
 ## Shared Engine: `lib/three-scene.ts`
 
-All boilerplate lives here. Viewer components just call:
-
 | Export | Purpose |
 |--------|---------|
-| `createScene({ container, cameraStart })` | Bootstraps renderer, camera, 4-point lights, OrbitControls. Returns `SceneRefs`. |
-| `startRenderLoop(refs)` | RAF loop. Returns `stop()` function. |
+| `createScene({ container, cameraStart, minDistance?, maxDistance? })` | Renderer, camera, 4-point lights, OrbitControls, ResizeObserver. Returns `SceneRefs`. |
+| `startRenderLoop(refs)` | RAF loop. Returns `stop()` fn. |
 | `disposeScene(refs, container)` | Full cleanup — call in useEffect cleanup. |
-| `applyCameraPreset(refs, position, target)` | Animates camera to preset. |
-| `visualThickness(layer)` | Scales thin layers for visibility (see below). |
-| `buildLayerMesh(layer, w, h, t)` | Returns `THREE.Group` with MeshStandardMaterial + EdgesGeometry outline. |
-| `createAnnotationSprite(text)` | 850x200 canvas sprite (depthTest:false). |
-| `createAnnotationDot(pos)` | Black sphere dot at panel edge. |
-| `createAnnotationLine(from, to)` | Black line from dot to label. |
-| `downloadPNG(renderer, filename)` | Saves current canvas as PNG. |
+| `applyCameraPreset(refs, position, target)` | Moves camera to preset. |
+| `visualThickness(layer)` | Scales thin layers for visibility. |
+| `buildLayerMesh(layer, w, h, t)` | `THREE.Group` with MeshStandardMaterial + EdgesGeometry. |
+| `createLabel(scene, position, text)` | CSS2DObject label (always faces camera). |
+| `createAnnotationDot(pos)` | Dark blue sphere at anchor. |
+| `createAnnotationLine(scene, from, to)` | Gray leader line. |
+| `downloadPNG(renderer, filename)` | Save canvas as PNG. |
 
-### Visual Thickness Scaling (CRITICAL — do not change)
+### Visual Thickness Scaling (do not change)
 ```typescript
-if (layer.thickness < 1) return layer.thickness * 20;  // coatings
-if (layer.thickness < 5) return layer.thickness * 8;   // lead etc.
-return layer.thickness;                                  // normal layers
+if (layer.thickness < 1) return layer.thickness * 20;  // coatings/foil
+if (layer.thickness < 5) return layer.thickness * 8;   // lead, thin sheets
+return layer.thickness;                                  // normal — no scale
 ```
-Always store **real-world mm values** in product files. Scaling is automatic.
 
-### Renderer Config (always these settings)
+### Standard Renderer Config
 ```typescript
 { antialias: true, alpha: true, preserveDrawingBuffer: true }
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.VSMShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMappingExposure = 1.2;
 ```
 
-### 4-Point Lighting (standard)
+### 4-Point Lighting
 Ambient 0.6 + Key DirectionalLight top-front 1.8 (shadow 4096px) + Cool fill left 1.0 + Warm rim back-right 0.6.
+
+### RoomEnvironment (use in custom viewers)
+```typescript
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment()).texture;
+```
+
+---
+
+## Hermetic Door — Key Details
+
+File: `src/app/components/HermeticDoorAssembled3D.tsx`
+
+### Constants (scene units)
+```
+DW=160, DH=210, DT=10   — door panel
+HW=DW+20=180, HH=42, HDT=28  — housing (D-profile aluminum extrusion)
+FT=8                     — frame jamb thickness
+DOOR_OFFSET=0            — closed position
+```
+
+### Housing Shape (ExtrudeGeometry — CRITICAL axis math)
+Housing cross-section is a D-profile (rounded front corners, flat back):
+```typescript
+const hProf = new THREE.Shape();
+// shape.x = world Z (depth), shape.y = world Y (height)
+hProf.moveTo(-HDT/2, 0);
+hProf.lineTo(-HDT/2, HH);
+hProf.lineTo(HDT/2 - HR, HH);
+hProf.quadraticCurveTo(HDT/2, HH, HDT/2, HH-HR);
+hProf.lineTo(HDT/2, HR);
+hProf.quadraticCurveTo(HDT/2, 0, HDT/2-HR, 0);
+hProf.lineTo(-HDT/2, 0);
+
+const housingGeo = new THREE.ExtrudeGeometry(hProf, { depth: HW, bevelEnabled: false });
+housingGeo.rotateY(-Math.PI / 2);   // extrusion Z → world -X; profile X → world Z
+housingGeo.translate(HW / 2, 0, 0); // center along world X
+
+const housing = new THREE.Mesh(housingGeo, mat);
+housing.position.set(0, DH/2, DT/2 - 4);  // protrudes FORWARD (+Z), bottom flush with door top
+```
+
+**Traps:**
+- `position.z = -HDT/2` → goes into wall (WRONG)
+- `HW > DW+40` → visible flat end-cap artifact from angled camera
+- No separate top frame head — housing IS the top structure
+
+### Materials
+```
+SS:    0xd0dde6, metalness 0.92, roughness 0.08
+Glass: 0x9ed4e8, metalness 0.0,  roughness 0.03, opacity 0.45
+Lead:  0x7a7f85, metalness 0.75, roughness 0.35
+Frame: 0x505860, metalness 0.72, roughness 0.28
+```
 
 ---
 
 ## Component Contracts
 
-### `AssembledPanel3D` / `ExplodedPanel3D`
-- Accept single `product: Product` prop
-- Use `refsRef = useRef<ReturnType<typeof createScene>>()` pattern (not individual scene/camera/renderer refs)
-- `useEffect([product])` — full scene rebuild on product change
-- Parent uses `key={product.id}` to force remount on product switch
+### `useThreeScene` hook
+```typescript
+const mountRef = useRef<HTMLDivElement>(null);
+useThreeScene(mountRef, (scene, renderer) => {
+  // build your scene here — called once container has real dimensions
+  return () => { /* cleanup */ };
+});
+```
 
-### `ViewerControls` (exported from `AssembledPanel3D.tsx`)
-- Reusable camera preset buttons + download buttons
-- Imported by `ExplodedPanel3D` too
+### `ViewerControls`
+```typescript
+<ViewerControls
+  presets={product.cameraPresets}
+  activePreset={activePreset}
+  onPreset={(p) => applyCameraPreset(refs, p.position, p.target)}
+  onDownload={(name) => downloadPNG(renderer, `${product.id}-${name}.png`)}
+  onDownloadAll={() => { /* loop presets */ }}
+/>
+```
 
-### `Sidebar`
-- Props: `products`, `selected`, `onSelect`
-- Groups by `product.category` using `CATEGORY_ORDER` constant
-- Collapsible sections, search filter, color swatch from first layer
-
-### `ProductViewer`
-- Reads `product.views` — only renders tabs for declared views
-- A product with `views: ['assembled']` shows NO exploded tab
-- Resets active tab to `product.views[0]` on product change
+### Viewer layout pattern
+```tsx
+<div className="w-full h-full flex flex-col">
+  <ViewerControls ... />
+  <div className="flex-1 min-h-0">
+    <div ref={mountRef} className="w-full h-full" />
+  </div>
+</div>
+```
+**Do not put anything inside the `flex-1` div besides the mount ref** — legend/info panels outside compress canvas height.
 
 ---
 
-## Types (`src/app/data/products.ts` — types only, no data)
+## CSS2D Annotations
+
+All annotations use `CSS2DRenderer` (already set up in `createScene`).
 
 ```typescript
-type ViewType        = 'assembled' | 'exploded';
-type ProductCategory = 'Panel Dinding' | 'Cleanroom' | 'Plafon' | 'Lantai' | 'Pintu & Partisi' | 'Lainnya';
-
-interface Product {
-  id: string; name: string; fullName: string; description: string;
-  category: ProductCategory;
-  badge?: string; badgeColor?: string;
-  views: ViewType[];
-  layers: Layer[];
-  dimensions: PanelDimensions;
-  specs: ProductSpec[];
-  cameraPresets: CameraPreset[];
-  assembledCameraStart: [number, number, number];
-  explodedCameraStart:  [number, number, number];
-}
+// All annotations on the same side (right), spread by Y
+const LABEL_X = HW / 2 + 30;
+annotList.forEach(({ pos, label }) => {
+  const labelPos = new THREE.Vector3(LABEL_X, pos.y, 0);
+  scene.add(createAnnotationDot(pos));
+  createAnnotationLine(scene, pos, labelPos);
+  createLabel(scene, labelPos, label);
+});
 ```
+
+**Known issue:** When multiple annotations have similar Y values, labels overlap. Stagger `labelPos.y` if needed.
 
 ---
 
 ## Conventions
 - All UI text and specs in **Indonesian**
-- `sceneWidth/sceneHeight` = Three.js units (`120 ≈ 1200mm`)
-- Download filenames: `{product.id}-assembled-{angle}.png` / `{product.id}-exploded-{angle}.png`
-- Never combine assembled/exploded logic into one component
 - No auto-rotation — manual OrbitControls only
-- `WallPanelViewer.tsx` is legacy — do not modify unless explicitly asked
+- Download filenames: `{product.id}-{view}-{angle}.png`
+- Never combine assembled/exploded logic into one component
+- `WallPanelViewer.tsx` is legacy — do not modify
 
 ---
 
-## Current Products (3)
+## Current Products (5)
 
-| id | Name | Category | Views |
-|----|------|----------|-------|
-| `sandwich-radiasi` | Sandwich + Radiasi | Panel Dinding | assembled, exploded |
-| `sandwich-standard` | Sandwich Standard | Panel Dinding | assembled, exploded |
-| `cleanroom` | Cleanroom Panel | Cleanroom | assembled, exploded |
+| id | Name | Category | viewerType | Views |
+|----|------|----------|------------|-------|
+| `sandwich-radiasi` | Sandwich + Radiasi | Panel Dinding | panel (default) | assembled, exploded |
+| `sandwich-standard` | Sandwich Standard | Panel Dinding | panel (default) | assembled, exploded |
+| `cleanroom` | Cleanroom Panel | Cleanroom | panel (default) | assembled, exploded |
+| `curving-r40` | Curving R40 | Pintu & Partisi | curving | assembled, exploded |
+| `hermetic-door` | Hermetic Auto Sliding Door | Pintu & Partisi | hermetic-door | assembled, exploded |

@@ -1,5 +1,34 @@
 # Changelog
 
+## [2026-03-06] — Hermetic Door: D-Profile Housing Overhaul
+
+### Fixed
+- **Housing shape mismatch (critical)** — Replaced `BoxGeometry` housing with `ExtrudeGeometry` using a true D-profile cross-section (rounded front corners, flat back) matching real medical hermetic door references. Previous flat box looked like "a sticker on top of a frame", not an integrated sliding mechanism housing.
+- **Housing extrudes forward, not backward** — `ExtrudeGeometry` axis math: after `rotateY(-PI/2)` + `translate(HW/2, 0, 0)`, housing depth goes along Z; set `position.z = DT/2 - 4` so housing protrudes forward (+Z) from door face, not into wall.
+- **Side-face artifact removed** — Reduced `HW` from `DW+80=240` → `DW+20=180`. Wide housing created a large flat end-cap face visible from angled views as an artifact.
+- **Double top structure removed** — Deleted separate top frame `head` mesh; housing IS the top structure now, matching real hermetic doors.
+- **Track rail floating** — Repositioned track to `housingY + 3` (just inside housing bottom) and added housing bottom flange spanning full frame width to visually bridge housing to jambs.
+- **Rollers/ribs removed** — Replaced with cleaner track geometry; rollers were not visible at normal camera distances and added noise.
+- **LED indicator Z position** — Updated sensor/indicator Z from complex formula to `sensorFaceZ = 0.15` (housing front face).
+
+### Changed
+- `HW` = DW+20 (180), `HH` = 42 (≈420mm real world), `HDT` = 28 (deep D-profile)
+- Housing corner radius `HR = 7` — front corners rounded, back edge sharp
+- Housing position: `set(0, DH/2, DT/2 - 4)` — bottom flush with door top, center at Z=1
+
+---
+
+## [2026-03-06] — Hermetic Door: Geometry Reference Accuracy
+
+### Fixed
+- **Door centered** (`DOOR_OFFSET = 0`) — closed position instead of sliding-open offset
+- **Handle orientation** — Changed from horizontal D-bar to vertical bar (CylinderGeometry, no rotation.z) at right edge, centered height
+- **EPDM rubber seals** — Added dark thin strips around all 4 door perimeter edges
+- **Bump guard** — SS horizontal strip on front face, lower third
+- **Floor guide rail** — Small SS channel at floor level
+
+---
+
 ## [2026-03-04] — Annotation, Canvas Sizing & Sidebar Polish
 
 ### Fixed
