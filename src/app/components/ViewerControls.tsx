@@ -29,7 +29,7 @@ export function ViewerControls({ presets, activePreset, onPreset, onDownload, on
 
       {/* Camera preset buttons */}
       <div className="flex flex-wrap gap-1 items-center">
-        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mr-1">Sudut:</span>
+        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mr-1">Sudut:</span>
         {presets.map((p) => {
           const isActive = p.name === activePreset;
           return (
@@ -37,7 +37,7 @@ export function ViewerControls({ presets, activePreset, onPreset, onDownload, on
               key={p.name}
               onClick={() => onPreset(p)}
               className={[
-                'px-2.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer',
+                'px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer',
                 isActive
                   ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-200'
                   : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-600',
@@ -53,14 +53,14 @@ export function ViewerControls({ presets, activePreset, onPreset, onDownload, on
       <div className="flex gap-1.5 items-center">
         <button
           onClick={onDownloadAll}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-green-700 border border-green-200 bg-green-50 hover:bg-green-100 rounded-md transition cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-green-700 border border-green-200 bg-green-50 hover:bg-green-100 rounded-md transition cursor-pointer"
         >
           <Images className="h-3.5 w-3.5" />
           Semua Sudut
         </button>
         <button
           onClick={() => onDownload('current')}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-gray-700 border border-gray-200 bg-white hover:border-blue-300 hover:text-blue-600 rounded-md transition cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-gray-700 border border-gray-200 bg-white hover:border-blue-300 hover:text-blue-600 rounded-md transition cursor-pointer"
         >
           <Camera className="h-3.5 w-3.5" />
           Unduh
@@ -68,7 +68,7 @@ export function ViewerControls({ presets, activePreset, onPreset, onDownload, on
       </div>
 
       {/* Hint */}
-      <p className="w-full text-[10px] text-gray-400 italic">
+      <p className="w-full text-[10px] text-gray-400">
         Drag: putar &middot; Scroll: zoom &middot; Klik kanan: geser
       </p>
     </div>

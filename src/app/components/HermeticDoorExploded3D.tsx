@@ -156,10 +156,11 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
       createDashedCornerLines(scene, layer, currentZ + vt / 2, currentZ + vt + EXPLOSION_GAP - vt / 2);
     }
 
-    // Annotation — CSS2D label outside right edge with leader line
+    // Annotation — CSS2D label outside right edge with leader line, staggered Y
     const layerCenterZ = currentZ + vt / 2;
+    const yOff   = (i % 2 === 0) ? 30 : -30;
     const anchor   = new THREE.Vector3(DW / 2, 0, layerCenterZ);
-    const labelPos = new THREE.Vector3(DW / 2 + 65, 0, layerCenterZ);
+    const labelPos = new THREE.Vector3(DW / 2 + 65, yOff, layerCenterZ);
     scene.add(createAnnotationDot(anchor));
     createAnnotationLine(scene, anchor, labelPos);
     createLabel(scene, labelPos, layer.name);
@@ -195,7 +196,7 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
 
   // Glass annotation — CSS2D label outside right edge with leader line
   const glassAnchor   = new THREE.Vector3(WX + WW / 2, WY - DH / 2 + WH / 2, glassZ);
-  const glassLabelPos = new THREE.Vector3(DW / 2 + 65, WY - DH / 2 + WH / 2, glassZ);
+  const glassLabelPos = new THREE.Vector3(DW / 2 + 65, WY - DH / 2 + WH / 2 + 30, glassZ);
   scene.add(createAnnotationDot(glassAnchor));
   createAnnotationLine(scene, glassAnchor, glassLabelPos);
   createLabel(scene, glassLabelPos, glassLayer.name);

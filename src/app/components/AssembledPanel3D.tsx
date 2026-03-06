@@ -47,8 +47,9 @@ export function AssembledPanel3D({ product }: Props) {
       layers.forEach((layer, i) => {
         const t    = vt[i];
         const z    = az + t / 2;
+        const yOff     = (i % 2 === 0) ? 30 : -30;
         const anchor   = new THREE.Vector3(pw / 2 + 2, 0, z);
-        const labelPos = new THREE.Vector3(pw / 2 + 65, 0, z);
+        const labelPos = new THREE.Vector3(pw / 2 + 65, yOff, z);
         refs.scene.add(createAnnotationDot(anchor));
         createAnnotationLine(refs.scene, anchor, labelPos);
         createLabel(refs.scene, labelPos, layer.name);

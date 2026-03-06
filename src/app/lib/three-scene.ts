@@ -243,15 +243,13 @@ export function createLabel(
 ): CSS2DObject {
   const wrap = document.createElement('div');
   wrap.style.cssText = [
-    'background:rgba(255,255,255,0.94)',
-    'border:1px solid rgba(26,46,80,0.18)',
-    'border-radius:4px',
-    'padding:2px 7px',
-    'font:400 11px/1.5 Inter,Arial,sans-serif',
-    'color:#1a2e50',
+    'background:rgba(255,255,255,0.82)',
+    'border-radius:3px',
+    'padding:1px 6px',
+    'font:400 10px/1.5 Inter,Arial,sans-serif',
+    'color:#374151',
     'white-space:nowrap',
     'pointer-events:none',
-    'box-shadow:0 1px 4px rgba(0,0,0,0.08)',
     'user-select:none',
   ].join(';');
   wrap.textContent = text;
@@ -279,7 +277,7 @@ export function createAnnotationLine(
 /** Small filled circle dot at annotation anchor point. */
 export function createAnnotationDot(pos: THREE.Vector3): THREE.Mesh {
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(2.5, 16, 16),
+    new THREE.SphereGeometry(1.8, 12, 12),
     new THREE.MeshBasicMaterial({ color: 0x1a3a6e, depthTest: false }),
   );
   mesh.position.copy(pos);
