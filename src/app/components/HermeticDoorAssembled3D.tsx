@@ -15,7 +15,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Product, CameraPreset } from '../data/products';
 import {
-  applyCameraPreset, downloadPNG, createLabel, createAnnotationDot,
+  applyCameraPreset, downloadPNG, createLabel, createAnnotationDot, createAnnotationLine,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
@@ -376,9 +376,12 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     { pos: new THREE.Vector3(DOOR_OFFSET + DW / 2 - 10, 3, zA),            label: 'Handle SS' },
   ];
 
+  const LABEL_X = HW / 2 + 30;  // 135 — clear of housing right edge
   annotList.forEach(({ pos, label }) => {
+    const labelPos = new THREE.Vector3(LABEL_X, pos.y, pos.z);
     scene.add(createAnnotationDot(pos));
-    createLabel(scene, pos.clone().add(new THREE.Vector3(8, 0, 0)), label);
+    createAnnotationLine(scene, pos, labelPos);
+    createLabel(scene, labelPos, label);
   });
 }
 

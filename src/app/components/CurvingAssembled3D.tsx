@@ -24,7 +24,7 @@ import { useState } from 'react';
 import * as THREE from 'three';
 import type { Product, CameraPreset } from '../data/products';
 import {
-  applyCameraPreset, downloadPNG, createLabel, createAnnotationDot,
+  applyCameraPreset, downloadPNG, createLabel, createAnnotationDot, createAnnotationLine,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
@@ -188,8 +188,10 @@ function buildAssembledScene(scene: THREE.Scene, L: number) {
   ];
 
   anchors.forEach(({ pos, label }) => {
+    const labelPos = pos.clone().add(new THREE.Vector3(55, 0, 0));
     scene.add(createAnnotationDot(pos));
-    createLabel(scene, pos.clone().add(new THREE.Vector3(8, 0, 0)), label);
+    createAnnotationLine(scene, pos, labelPos);
+    createLabel(scene, labelPos, label);
   });
 }
 

@@ -23,7 +23,7 @@ import { useState } from 'react';
 import * as THREE from 'three';
 import type { Product, CameraPreset } from '../data/products';
 import {
-  applyCameraPreset, downloadPNG, createLabel, createAnnotationDot,
+  applyCameraPreset, downloadPNG, createLabel, createAnnotationDot, createAnnotationLine,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
@@ -234,8 +234,10 @@ function buildExplodedScene(scene: THREE.Scene, L: number) {
   ];
 
   annotData.forEach(({ anchor, label }) => {
+    const labelPos = anchor.clone().add(new THREE.Vector3(55, 0, 0));
     scene.add(createAnnotationDot(anchor));
-    createLabel(scene, anchor.clone().add(new THREE.Vector3(10, 0, 0)), label);
+    createAnnotationLine(scene, anchor, labelPos);
+    createLabel(scene, labelPos, label);
   });
 }
 

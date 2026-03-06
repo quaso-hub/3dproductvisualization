@@ -22,7 +22,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Product, CameraPreset } from '../data/products';
 import {
-  applyCameraPreset, downloadPNG, createLabel, createAnnotationDot, visualThickness,
+  applyCameraPreset, downloadPNG, createLabel, createAnnotationDot, createAnnotationLine, visualThickness,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
@@ -156,11 +156,13 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
       createDashedCornerLines(scene, layer, currentZ + vt / 2, currentZ + vt + EXPLOSION_GAP - vt / 2);
     }
 
-    // Annotation — CSS2D label at right edge of this layer
+    // Annotation — CSS2D label outside right edge with leader line
     const layerCenterZ = currentZ + vt / 2;
-    const dot = new THREE.Vector3(DW / 2, 0, layerCenterZ);
-    scene.add(createAnnotationDot(dot));
-    createLabel(scene, dot.clone().add(new THREE.Vector3(10, 0, 0)), layer.name, `${layer.thickness}mm`);
+    const anchor   = new THREE.Vector3(DW / 2, 0, layerCenterZ);
+    const labelPos = new THREE.Vector3(DW / 2 + 65, 0, layerCenterZ);
+    scene.add(createAnnotationDot(anchor));
+    createAnnotationLine(scene, anchor, labelPos);
+    createLabel(scene, labelPos, layer.name);
 
     currentZ += vt + EXPLOSION_GAP;
   });
@@ -191,10 +193,12 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
     new THREE.LineBasicMaterial({ color: 0x0284c7, opacity: 0.4, transparent: true }),
   )).position.copy(glassMesh.position);
 
-  // Glass annotation — CSS2D label
-  const glassDot = new THREE.Vector3(WX + WW / 2, WY - DH / 2 + WH / 2, glassZ);
-  scene.add(createAnnotationDot(glassDot));
-  createLabel(scene, glassDot.clone().add(new THREE.Vector3(10, 0, 0)), glassLayer.name, `${glassLayer.thickness}mm`);
+  // Glass annotation — CSS2D label outside right edge with leader line
+  const glassAnchor   = new THREE.Vector3(WX + WW / 2, WY - DH / 2 + WH / 2, glassZ);
+  const glassLabelPos = new THREE.Vector3(DW / 2 + 65, WY - DH / 2 + WH / 2, glassZ);
+  scene.add(createAnnotationDot(glassAnchor));
+  createAnnotationLine(scene, glassAnchor, glassLabelPos);
+  createLabel(scene, glassLabelPos, glassLayer.name);
 
   // ── Dimension indicator: total thickness arrow + tick marks ──
   const arrowMat = new THREE.LineBasicMaterial({ color: 0x374151, opacity: 0.6, transparent: true, linewidth: 2 });
@@ -221,7 +225,7 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
 
   const thickDot = new THREE.Vector3(-DW / 2 - 25, arrowY, 0);
   scene.add(createAnnotationDot(thickDot));
-  createLabel(scene, thickDot.clone().add(new THREE.Vector3(-8, 0, 0)), 'Tebal Total', '~94mm');
+  createLabel(scene, thickDot.clone().add(new THREE.Vector3(-8, 0, 0)), 'Tebal Total ~94mm');
 }
 
 // ─── React component ─────────────────────────────────────────

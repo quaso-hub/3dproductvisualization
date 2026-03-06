@@ -235,44 +235,45 @@ export function buildLayerMesh(
  * Creates a CSS2DObject label that always faces the camera and
  * projects correctly regardless of camera angle.
  * Position is in world-space — attach to a scene or object.
- *
- * @param sub  Optional muted sub-text (e.g. thickness "2mm")
  */
 export function createLabel(
   scene: THREE.Scene,
   position: THREE.Vector3,
   text: string,
-  sub?: string,
 ): CSS2DObject {
   const wrap = document.createElement('div');
   wrap.style.cssText = [
-    'background:rgba(255,255,255,0.96)',
-    'border:1.5px solid rgba(26,46,80,0.22)',
-    'border-radius:5px',
-    'padding:2px 8px',
-    'font:600 11px/1.5 Inter,Arial,sans-serif',
+    'background:rgba(255,255,255,0.94)',
+    'border:1px solid rgba(26,46,80,0.18)',
+    'border-radius:4px',
+    'padding:2px 7px',
+    'font:400 11px/1.5 Inter,Arial,sans-serif',
     'color:#1a2e50',
     'white-space:nowrap',
     'pointer-events:none',
-    'box-shadow:0 1px 5px rgba(0,0,0,0.10)',
-    'display:flex',
-    'align-items:center',
-    'gap:5px',
+    'box-shadow:0 1px 4px rgba(0,0,0,0.08)',
     'user-select:none',
   ].join(';');
-  const nameSpan = document.createElement('span');
-  nameSpan.textContent = text;
-  wrap.appendChild(nameSpan);
-  if (sub) {
-    const s = document.createElement('span');
-    s.style.cssText = 'font-weight:400;color:#6b7280;font-size:10px;';
-    s.textContent = sub;
-    wrap.appendChild(s);
-  }
+  wrap.textContent = text;
   const obj = new CSS2DObject(wrap);
   obj.position.copy(position);
   scene.add(obj);
   return obj;
+}
+
+/** Thin 3D leader line from anchor dot to label position. */
+export function createAnnotationLine(
+  scene: THREE.Scene,
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+): void {
+  const mat = new THREE.LineBasicMaterial({
+    color: 0x9ca3af,
+    opacity: 0.55,
+    transparent: true,
+  });
+  const geo = new THREE.BufferGeometry().setFromPoints([from, to]);
+  scene.add(new THREE.Line(geo, mat));
 }
 
 /** Small filled circle dot at annotation anchor point. */

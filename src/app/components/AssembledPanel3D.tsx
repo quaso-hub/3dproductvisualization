@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import type { Product, CameraPreset } from '../data/products';
 import {
   applyCameraPreset, visualThickness, buildLayerMesh,
-  createLabel, createAnnotationDot, downloadPNG,
+  createLabel, createAnnotationDot, createAnnotationLine, downloadPNG,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
@@ -47,9 +47,11 @@ export function AssembledPanel3D({ product }: Props) {
       layers.forEach((layer, i) => {
         const t    = vt[i];
         const z    = az + t / 2;
-        const dot  = new THREE.Vector3(pw / 2 + 2, 0, z);
-        refs.scene.add(createAnnotationDot(dot));
-        createLabel(refs.scene, new THREE.Vector3(pw / 2 + 12, 0, z), layer.name, `${layer.thickness}mm`);
+        const anchor   = new THREE.Vector3(pw / 2 + 2, 0, z);
+        const labelPos = new THREE.Vector3(pw / 2 + 65, 0, z);
+        refs.scene.add(createAnnotationDot(anchor));
+        createAnnotationLine(refs.scene, anchor, labelPos);
+        createLabel(refs.scene, labelPos, layer.name);
         az += t;
       });
     },
