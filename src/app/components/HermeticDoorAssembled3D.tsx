@@ -26,7 +26,7 @@ interface Props { product: Product }
 const DW  = 160;  // lebar pintu
 const DH  = 210;  // tinggi pintu
 const DT  = 10;   // tebal panel pintu
-const DOOR_OFFSET = -40;  // Offset ke kiri untuk simulasi sliding door
+const DOOR_OFFSET = 0;    // Pintu dalam posisi tertutup (closed)
 
 // Window dalam pintu
 const WW  = 30;
@@ -211,6 +211,33 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     new THREE.LineBasicMaterial({ color: 0x1a2332, opacity: 0.1, transparent: true }),
   )).position.copy(doorMesh.position);
 
+  // ── 2b. EPDM rubber gasket strips (dark seal around door perimeter) ──
+  const epdmMat = new THREE.MeshStandardMaterial({
+    color: 0x282830,
+    roughness: 0.85,
+    metalness: 0.0,
+  });
+  const ES = 1.8;  // EPDM strip width
+  const epdmItems: [THREE.BoxGeometry, [number, number, number]][] = [
+    [new THREE.BoxGeometry(DW, ES, DT + 2), [0, DH / 2, 0]],          // top
+    [new THREE.BoxGeometry(DW, ES, DT + 2), [0, -DH / 2, 0]],         // bottom
+    [new THREE.BoxGeometry(ES, DH + ES * 2, DT + 2), [-DW / 2, 0, 0]], // left
+    [new THREE.BoxGeometry(ES, DH + ES * 2, DT + 2), [DW / 2, 0, 0]],  // right
+  ];
+  epdmItems.forEach(([geo, pos]) => {
+    const m = new THREE.Mesh(geo, epdmMat);
+    m.position.set(...pos);
+    scene.add(m);
+  });
+
+  // ── 2c. Horizontal bump guard strip (stainless, lower third) ─
+  const bumpGuard = new THREE.Mesh(
+    new THREE.BoxGeometry(DW - 8, 5, 2),
+    matSS(0.12, 0.92),
+  );
+  bumpGuard.position.set(0, -DH / 4, DT / 2 + 0.5);
+  scene.add(bumpGuard);
+
   // ── 3. Lead Glass in window cutout ───────────────────────
   const glassGeo = new THREE.BoxGeometry(WW, WH, WT);
   const glassMesh = new THREE.Mesh(glassGeo, matGlass());
@@ -240,20 +267,20 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   pbStripe.position.set(DOOR_OFFSET, DH / 2 - 1.25, 0);
   scene.add(pbStripe);
 
-  // ── 5. Horizontal D-handle (right side) ──────────────────
+  // ── 5. Vertical bar handle (right side, mid-height) ─────
   const handleMat = matSS(0.1, 0.94);
-  const handleGeo = new THREE.CylinderGeometry(0.8, 0.8, 18, 12);
+  const handleGeo = new THREE.CylinderGeometry(0.9, 0.9, 28, 16);
   const handleBar = new THREE.Mesh(handleGeo, handleMat);
-  handleBar.rotation.z = Math.PI / 2;
-  handleBar.position.set(DOOR_OFFSET + DW / 2 - 10, 3, DT / 2 + 3);
+  // No rotation — cylinder stands vertical by default
+  handleBar.position.set(DW / 2 - 12, 0, DT / 2 + 3);
   scene.add(handleBar);
 
-  // Handle brackets
-  const bracketGeo = new THREE.CylinderGeometry(1.2, 1.2, 6, 12);
-  [-19, -1].forEach((offset) => {
+  // Handle wall-mount brackets (horizontal pins into door face)
+  const bracketGeo = new THREE.CylinderGeometry(1.2, 1.2, 5, 12);
+  [-12, 12].forEach((yOff) => {
     const bracket = new THREE.Mesh(bracketGeo, handleMat);
     bracket.rotation.x = Math.PI / 2;
-    bracket.position.set(DOOR_OFFSET + DW / 2 + offset, 3, DT / 2 + 1);
+    bracket.position.set(DW / 2 - 12, yOff, DT / 2 + 1);
     scene.add(bracket);
   });
 
@@ -296,6 +323,14 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   const indicator = new THREE.Mesh(indicatorGeo, indicatorMat);
   indicator.position.set(0, housingY + HH * 0.88, -(HDT - DT) / 2 + HDT / 2 + 0.1);
   scene.add(indicator);
+
+  // ── 6b. Floor bottom guide rail ──────────────────────────
+  const floorGuide = new THREE.Mesh(
+    new THREE.BoxGeometry(DW + FT * 2, 1.5, 5),
+    matSS(0.2, 0.85),
+  );
+  floorGuide.position.set(0, -DH / 2 - FT - 1.5, 0);
+  scene.add(floorGuide);
 
   // ── 7. Sensor boxes (left/right of frame) ────────────────
   const sensorGeo = new THREE.BoxGeometry(4, 8, 3);
@@ -373,7 +408,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     { pos: new THREE.Vector3(DOOR_OFFSET + WX + WW / 2, WY + WH / 2 - DH / 2, zA), label: 'Lead Glass Pb 5mm' },
     { pos: new THREE.Vector3(DOOR_OFFSET - DW / 2, 0, zA),                 label: 'Stainless Steel' },
     { pos: new THREE.Vector3(DOOR_OFFSET, DH / 2 - 1.25, zA),              label: 'Lapis Pb 2mm' },
-    { pos: new THREE.Vector3(DOOR_OFFSET + DW / 2 - 10, 3, zA),            label: 'Handle SS' },
+    { pos: new THREE.Vector3(DW / 2 - 12, 0, zA),                          label: 'Handle SS' },
   ];
 
   const LABEL_X = HW / 2 + 30;  // 135 — clear of housing right edge
