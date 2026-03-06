@@ -413,8 +413,8 @@ export function HermeticDoorAssembled3D({ product }: Props) {
     },
     onInit: (refs) => {
       buildScene(refs.scene, refs.renderer);
-      refs.controls.target.set(0, 105, 0);  // Center of door (DH / 2 = 105)
-      refs.controls.update();
+      const p = product.cameraPresets[0];  // Isometric: sets both camera.position + controls.target
+      applyCameraPreset(refs, p.position, p.target);
     },
     deps: [product],
   });
