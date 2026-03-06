@@ -35,10 +35,10 @@ const WX  = 0;
 const WY  = 150;
 const WT  = 0.6;
 
-// Housing overhead
-const HW  = DW + 50;
-const HH  = 22;
-const HDT = 16;
+// Housing overhead — large D-profile aluminum extrusion
+const HW  = DW + 20;   // 180 — just wider than frame
+const HH  = 42;        // tall (≈420mm real-world)
+const HDT = 28;        // deep profile
 
 // Frame
 const FT  = 8;
@@ -184,14 +184,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   jambR.position.x = DW / 2 + FT / 2;
   scene.add(jambR);
 
-  // Head (top frame)
-  const head = new THREE.Mesh(
-    new THREE.BoxGeometry(DW + FT * 2, FT, DT + 4),
-    frameMat,
-  );
-  head.position.set(0, DH / 2 + FT / 2, 0);
-  head.castShadow = true;
-  scene.add(head);
+  // No separate top head — housing serves as the top structure (matches real hermetic doors)
 
   // ── 2. Door panel with window cutout (OFFSET to show sliding) ──
   const doorGeo = new THREE.ExtrudeGeometry(buildDoorShape(), {
@@ -284,36 +277,33 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     scene.add(bracket);
   });
 
-  // ── 6. Overhead housing ───────────────────────────────────
+  // ── 6. Overhead housing — D-profile aluminum extrusion ───────
   const housingMat = matHousing();
-  const housingY   = DH / 2 + 2;   // just above door top (centred geometry)
-  const housing = new THREE.Mesh(
-    new THREE.BoxGeometry(HW, HH, HDT),
-    housingMat,
-  );
-  housing.position.set(0, housingY + HH / 2, -(HDT - DT) / 2);
+  const housingY   = DH / 2;  // housing bottom flush with door top
+
+  // Cross-section profile: rounded front corners, flat back
+  // shape.x = world-Z (depth), shape.y = world-Y (height)
+  const HR = 7;  // front corner radius
+  const hProf = new THREE.Shape();
+  hProf.moveTo(-HDT / 2, 0);
+  hProf.lineTo(-HDT / 2, HH);
+  hProf.lineTo(HDT / 2 - HR, HH);
+  hProf.quadraticCurveTo(HDT / 2, HH, HDT / 2, HH - HR);
+  hProf.lineTo(HDT / 2, HR);
+  hProf.quadraticCurveTo(HDT / 2, 0, HDT / 2 - HR, 0);
+  hProf.lineTo(-HDT / 2, 0);
+
+  const housingGeo = new THREE.ExtrudeGeometry(hProf, { depth: HW, bevelEnabled: false });
+  housingGeo.rotateY(-Math.PI / 2);         // extrusion axis → world X
+  housingGeo.translate(HW / 2, 0, 0);       // center in X
+
+  const housing = new THREE.Mesh(housingGeo, housingMat);
+  housing.position.set(0, housingY, DT / 2 - 4);  // protrudes forward from door face
   housing.castShadow = true;
   scene.add(housing);
 
-  // Housing edge definition
-  scene.add(new THREE.LineSegments(
-    new THREE.EdgesGeometry(new THREE.BoxGeometry(HW, HH, HDT)),
-    new THREE.LineBasicMaterial({ color: 0x1a2332, opacity: 0.1, transparent: true }),
-  )).position.copy(housing.position);
-
-  // Housing motor detail (3 horizontal rib lines)
-  const ribMat = new THREE.LineBasicMaterial({ color: 0x3a4350, opacity: 0.6, transparent: true, linewidth: 2 });
-  [housingY + HH * 0.75, housingY + HH * 0.5, housingY + HH * 0.25].forEach((ribY) => {
-    const ribPts = [
-      new THREE.Vector3(-HW / 2 + 2, ribY, -(HDT - DT) / 2 + HDT / 2),
-      new THREE.Vector3(HW / 2 - 2, ribY, -(HDT - DT) / 2 + HDT / 2),
-    ];
-    const ribGeo = new THREE.BufferGeometry().setFromPoints(ribPts);
-    scene.add(new THREE.Line(ribGeo, ribMat));
-  });
-
-  // Housing indicator LED strip
-  const indicatorGeo = new THREE.BoxGeometry(HW - 4, 2, 0.2);
+  // Housing indicator LED strip (on front face)
+  const indicatorGeo = new THREE.BoxGeometry(HW - 4, 2.5, 0.2);
   const indicatorMat = new THREE.MeshStandardMaterial({
     color: 0x3a4350,
     roughness: 0.5,
@@ -321,7 +311,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     emissive: 0x1a1f2e,
   });
   const indicator = new THREE.Mesh(indicatorGeo, indicatorMat);
-  indicator.position.set(0, housingY + HH * 0.88, -(HDT - DT) / 2 + HDT / 2 + 0.1);
+  indicator.position.set(0, housingY + HH * 0.6, 0.15);
   scene.add(indicator);
 
   // ── 6b. Floor bottom guide rail ──────────────────────────
@@ -341,31 +331,31 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     scene.add(sensor);
   });
 
-  // ── 8. Sliding track inside housing ──────────────────────
-  const trackGeo = new THREE.BoxGeometry(HW - 10, 3, 3);
+  // ── 8. Sliding track rail + carriage hanger brackets ────────
   const trackMat = new THREE.MeshStandardMaterial({
     color: 0x404850,
     roughness: 0.15,
     metalness: 0.9,
   });
-  const trackY = DH / 2 + 2 + HH * 0.3;
-  const track = new THREE.Mesh(trackGeo, trackMat);
-  track.position.set(0, trackY, -(HDT - DT) / 2 - 2);
+
+  // Track rail: integrated at housing bottom, near front face
+  const trackY      = housingY + 3;   // = 108, just inside housing bottom
+  const track = new THREE.Mesh(
+    new THREE.BoxGeometry(HW - 6, 4, 5),
+    trackMat,
+  );
+  track.position.set(0, trackY, -2);
   scene.add(track);
 
-  // Track wheels (rollers)
-  const rollerGeo = new THREE.CylinderGeometry(2, 2, 3, 16);
-  const rollerMat = new THREE.MeshStandardMaterial({
-    color: 0x303840,
-    roughness: 0.1,
-    metalness: 0.92,
-  });
-  [-30, 0, 30].forEach((xOff) => {
-    const roller = new THREE.Mesh(rollerGeo, rollerMat);
-    roller.rotation.x = Math.PI / 2;
-    roller.position.set(xOff, trackY, -(HDT - DT) / 2 - 2);
-    scene.add(roller);
-  });
+  // Housing bottom flange: thin connecting lip that bridges housing base to frame jambs
+  // Spans full frame width at housing bottom, creating seamless visual connection
+  const flangeH = 4;
+  const flange = new THREE.Mesh(
+    new THREE.BoxGeometry(DW + FT * 2, flangeH, DT + 4),
+    matSS(0.18, 0.80),
+  );
+  flange.position.set(0, housingY + flangeH / 2, 0);
+  scene.add(flange);
 
   // ── 9. Sensor indicator lights (front face, left side) ─────
   const sensorGeoGreen = new THREE.SphereGeometry(1.4, 12, 8);
@@ -385,8 +375,8 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     emissiveIntensity: 0.4,
   });
 
-  const sensorFaceZ = -(HDT - DT) / 2 + HDT / 2 + 0.1;
-  const housingYRef = DH / 2 + 2;
+  const sensorFaceZ = 0.15;                    // housing front face at Z=0
+  const housingYRef = housingY;
   const sensorY     = housingYRef + HH * 0.55;
 
   const sGreen = new THREE.Mesh(sensorGeoGreen, matGreen);
@@ -399,7 +389,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
 
   // ── 10. Annotations (CSS2D) ──────────────────────────────────
   const zA  = 0;
-  const hYR = DH / 2 + 2;
+  const hYR = housingY;
 
   const annotList = [
     { pos: new THREE.Vector3(0, hYR + HH / 2, zA),                         label: 'Electric Motor Housing' },
@@ -411,7 +401,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     { pos: new THREE.Vector3(DW / 2 - 12, 0, zA),                          label: 'Handle SS' },
   ];
 
-  const LABEL_X = HW / 2 + 30;  // 135 — clear of housing right edge
+  const LABEL_X = HW / 2 + 30;  // 150 — clear of housing right edge
   annotList.forEach(({ pos, label }) => {
     const labelPos = new THREE.Vector3(LABEL_X, pos.y, pos.z);
     scene.add(createAnnotationDot(pos));
