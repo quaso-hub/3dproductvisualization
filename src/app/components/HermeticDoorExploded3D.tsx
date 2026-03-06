@@ -17,11 +17,12 @@
  * ─────────────────────────────────────────────────────────────
  */
 
+import { useState } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Product, CameraPreset } from '../data/products';
 import {
-  applyCameraPreset, downloadPNG, createAnnotationFull, visualThickness,
+  applyCameraPreset, downloadPNG, createLabel, createAnnotationDot, visualThickness,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
@@ -41,20 +42,23 @@ const WY = 150;
 
 // ─── Door shape dengan window hole ───────────────────────────
 
+// ─── Door shape dengan window hole (centred at y=0) ──────────
+
 function buildDoorShape(): THREE.Shape {
   const half = DW / 2;
+  const hh   = DH / 2;
   const shape = new THREE.Shape();
-  shape.moveTo(-half, 0);
-  shape.lineTo(half, 0);
-  shape.lineTo(half, DH);
-  shape.lineTo(-half, DH);
+  shape.moveTo(-half, -hh);
+  shape.lineTo(half,  -hh);
+  shape.lineTo(half,   hh);
+  shape.lineTo(-half,  hh);
   shape.closePath();
 
   const hole = new THREE.Path();
-  hole.moveTo(WX - WW / 2, WY);
-  hole.lineTo(WX + WW / 2, WY);
-  hole.lineTo(WX + WW / 2, WY + WH);
-  hole.lineTo(WX - WW / 2, WY + WH);
+  hole.moveTo(WX - WW / 2, WY - DH / 2);
+  hole.lineTo(WX + WW / 2, WY - DH / 2);
+  hole.lineTo(WX + WW / 2, WY - DH / 2 + WH);
+  hole.lineTo(WX - WW / 2, WY - DH / 2 + WH);
   hole.closePath();
   shape.holes.push(hole);
 
@@ -70,10 +74,10 @@ function createDashedCornerLines(
   zEnd: number,
 ) {
   const corners = [
-    [-DW / 2, 0],
-    [DW / 2, 0],
-    [DW / 2, DH],
-    [-DW / 2, DH],
+    [-DW / 2, -DH / 2],
+    [ DW / 2, -DH / 2],
+    [ DW / 2,  DH / 2],
+    [-DW / 2,  DH / 2],
   ];
 
   const lineMat = new THREE.LineDashedMaterial({
@@ -91,8 +95,8 @@ function createDashedCornerLines(
       new THREE.Vector3(x, y, zEnd),
     ];
     const geo = new THREE.BufferGeometry().setFromPoints(pts);
-    geo.computeLineDistances();
     const line = new THREE.Line(geo, lineMat);
+    line.computeLineDistances();
     scene.add(line);
   });
 }
@@ -101,6 +105,7 @@ function createDashedCornerLines(
 
 function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, layers: Product['layers']) {
   // ── RoomEnvironment for realistic PBR reflections ────────────
+  renderer.toneMappingExposure = 0.90;
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environment = envMap;
@@ -114,9 +119,6 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
 
   // Center the stack at Z=0
   let currentZ = -totalSpan / 2;
-
-  const xL = DW / 2 + 75;  // label X position (right side)
-  const annotZ = 0;         // annotation label Z (front plane)
 
   // ── Panel layers (0-4) ────────────────────────────────────
   layers.slice(0, 5).forEach((layer, i) => {
@@ -154,15 +156,11 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
       createDashedCornerLines(scene, layer, currentZ + vt / 2, currentZ + vt + EXPLOSION_GAP - vt / 2);
     }
 
-    // Annotation: anchor at right-center of this layer slab, but label at same Z as layer
+    // Annotation — CSS2D label at right edge of this layer
     const layerCenterZ = currentZ + vt / 2;
-    const annotYValues = [DH * 0.88, DH * 0.70, DH * 0.52, DH * 0.34, DH * 0.16];
-
-    createAnnotationFull(scene,
-      new THREE.Vector3(DW / 2, annotYValues[i], layerCenterZ),
-      new THREE.Vector3(xL, annotYValues[i], layerCenterZ),  // Label Z = layer Z (co-planar)
-      `${layer.name} (${layer.thickness}mm)`,
-    );
+    const dot = new THREE.Vector3(DW / 2, 0, layerCenterZ);
+    scene.add(createAnnotationDot(dot));
+    createLabel(scene, dot.clone().add(new THREE.Vector3(10, 0, 0)), layer.name, `${layer.thickness}mm`);
 
     currentZ += vt + EXPLOSION_GAP;
   });
@@ -183,7 +181,8 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
 
   const glassGeo = new THREE.BoxGeometry(WW, WH, glassVT);
   const glassMesh = new THREE.Mesh(glassGeo, glassMat);
-  glassMesh.position.set(WX, WY + WH / 2, glassZ);
+  // centred y: WY - DH/2 + WH/2
+  glassMesh.position.set(WX, WY - DH / 2 + WH / 2, glassZ);
   scene.add(glassMesh);
 
   // Glass outline
@@ -192,46 +191,46 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
     new THREE.LineBasicMaterial({ color: 0x0284c7, opacity: 0.4, transparent: true }),
   )).position.copy(glassMesh.position);
 
-  // Glass annotation (at same Z as glass)
-  createAnnotationFull(scene,
-    new THREE.Vector3(WX + WW / 2, WY + WH * 0.7, glassZ),
-    new THREE.Vector3(xL, DH * 0.05, glassZ),  // Label Z = glass Z
-    `${glassLayer.name} (${glassLayer.thickness}mm)`,
-  );
+  // Glass annotation — CSS2D label
+  const glassDot = new THREE.Vector3(WX + WW / 2, WY - DH / 2 + WH / 2, glassZ);
+  scene.add(createAnnotationDot(glassDot));
+  createLabel(scene, glassDot.clone().add(new THREE.Vector3(10, 0, 0)), glassLayer.name, `${glassLayer.thickness}mm`);
 
   // ── Dimension indicator: total thickness arrow + tick marks ──
   const arrowMat = new THREE.LineBasicMaterial({ color: 0x374151, opacity: 0.6, transparent: true, linewidth: 2 });
-  const totalThickness = -totalSpan / 2;
-  const finalThickness = currentZ + glassVT / 2;
+  const zStart = -totalSpan / 2;
+  const zFinal = currentZ + glassVT / 2;
+  const arrowY = 0;  // centred
 
   const arrowPts = [
-    new THREE.Vector3(-DW / 2 - 25, DH * 0.5, totalThickness),
-    new THREE.Vector3(-DW / 2 - 25, DH * 0.5, finalThickness),
+    new THREE.Vector3(-DW / 2 - 25, arrowY, zStart),
+    new THREE.Vector3(-DW / 2 - 25, arrowY, zFinal),
   ];
   const arrowGeo = new THREE.BufferGeometry().setFromPoints(arrowPts);
   scene.add(new THREE.Line(arrowGeo, arrowMat));
 
-  // Tick marks at start and end
   const tickH = 5;
-  [totalThickness, finalThickness].forEach((zPos) => {
+  [zStart, zFinal].forEach((zPos) => {
     const tickPts = [
-      new THREE.Vector3(-DW / 2 - 27, DH * 0.5 - tickH / 2, zPos),
-      new THREE.Vector3(-DW / 2 - 23, DH * 0.5 - tickH / 2, zPos),
+      new THREE.Vector3(-DW / 2 - 27, arrowY - tickH / 2, zPos),
+      new THREE.Vector3(-DW / 2 - 23, arrowY - tickH / 2, zPos),
     ];
     const tickGeo = new THREE.BufferGeometry().setFromPoints(tickPts);
     scene.add(new THREE.Line(tickGeo, arrowMat));
   });
 
-  createAnnotationFull(scene,
-    new THREE.Vector3(-DW / 2 - 25, DH * 0.5, 0),
-    new THREE.Vector3(-DW / 2 - 80, DH * 0.5, 0),
-    `Tebal Total: ~94mm`,
-  );
+  const thickDot = new THREE.Vector3(-DW / 2 - 25, arrowY, 0);
+  scene.add(createAnnotationDot(thickDot));
+  createLabel(scene, thickDot.clone().add(new THREE.Vector3(-8, 0, 0)), 'Tebal Total', '~94mm');
 }
 
 // ─── React component ─────────────────────────────────────────
 
 export function HermeticDoorExploded3D({ product }: Props) {
+  const [activePreset, setActivePreset] = useState<string>(
+    product.cameraPresets[0]?.name ?? '',
+  );
+
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: {
       cameraStart: product.explodedCameraStart,
@@ -240,20 +239,23 @@ export function HermeticDoorExploded3D({ product }: Props) {
     },
     onInit: (refs) => {
       buildExplodedScene(refs.scene, refs.renderer, product.layers);
-      const p = product.cameraPresets[0];  // Isometric: sets both camera.position + controls.target
+      const p = product.cameraPresets[0];
       applyCameraPreset(refs, p.position, p.target);
     },
     deps: [product],
   });
 
-  const goTo  = (p: CameraPreset) => refsRef.current && applyCameraPreset(refsRef.current, p.position, p.target);
-  const dl    = (name: string)    => refsRef.current && downloadPNG(refsRef.current.renderer, `${product.id}-exploded-${name.toLowerCase().replace(/\s+/g, '-')}.png`);
+  const goTo = (p: CameraPreset) => {
+    if (refsRef.current) applyCameraPreset(refsRef.current, p.position, p.target);
+    setActivePreset(p.name);
+  };
+  const dl    = (name: string) => refsRef.current && downloadPNG(refsRef.current.renderer, `${product.id}-exploded-${name.toLowerCase().replace(/\s+/g, '-')}.png`);
   const dlAll = () => product.cameraPresets.forEach((p, i) =>
     setTimeout(() => { goTo(p); setTimeout(() => dl(p.name), 220); }, i * 520));
 
   return (
     <div className="w-full h-full flex flex-col">
-      <ViewerControls presets={product.cameraPresets} onPreset={goTo} onDownload={dl} onDownloadAll={dlAll} />
+      <ViewerControls presets={product.cameraPresets} activePreset={activePreset} onPreset={goTo} onDownload={dl} onDownloadAll={dlAll} />
       <div className="flex-1 min-h-0">
         <div ref={mountRef} className="w-full h-full" />
       </div>

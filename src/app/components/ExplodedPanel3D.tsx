@@ -4,11 +4,12 @@
  * Lifecycle Three.js dikelola oleh hooks/useThreeScene.ts
  */
 
+import { useState } from 'react';
 import * as THREE from 'three';
 import type { Product, CameraPreset } from '../data/products';
 import {
   applyCameraPreset, visualThickness, buildLayerMesh,
-  createAnnotationFull, downloadPNG,
+  createLabel, createAnnotationDot, downloadPNG,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
@@ -18,6 +19,10 @@ interface Props { product: Product }
 const EXPLOSION_GAP = 80;
 
 export function ExplodedPanel3D({ product }: Props) {
+  const [activePreset, setActivePreset] = useState<string>(
+    product.cameraPresets[0]?.name ?? '',
+  );
+
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: { cameraStart: product.explodedCameraStart },
     onInit: (refs) => {
@@ -65,21 +70,23 @@ export function ExplodedPanel3D({ product }: Props) {
       });
       refs.scene.add(panelGroup);
 
+      /* Annotations — CSS2D labels at right edge of each separated layer */
       let az = -span / 2;
       layers.forEach((layer, i) => {
-        const t      = vt[i];
-        const z      = az + t / 2;
-        const anchor   = new THREE.Vector3(pw / 2 + 2, 0, z);
-        const labelPos = new THREE.Vector3(pw / 2 + 140, 0, z);
-        createAnnotationFull(refs.scene, anchor, labelPos, layer.name, 85);
+        const t   = vt[i];
+        const z   = az + t / 2;
+        refs.scene.add(createAnnotationDot(new THREE.Vector3(pw / 2 + 2, 0, z)));
+        createLabel(refs.scene, new THREE.Vector3(pw / 2 + 12, 0, z), layer.name, `${layer.thickness}mm`);
         az += t + EXPLOSION_GAP;
       });
     },
     deps: [product],
   });
 
-  const goToPreset = (p: CameraPreset) =>
-    refsRef.current && applyCameraPreset(refsRef.current, p.position, p.target);
+  const goToPreset = (p: CameraPreset) => {
+    if (refsRef.current) applyCameraPreset(refsRef.current, p.position, p.target);
+    setActivePreset(p.name);
+  };
 
   const download = (name: string) =>
     refsRef.current && downloadPNG(
@@ -95,6 +102,7 @@ export function ExplodedPanel3D({ product }: Props) {
     <div className="w-full h-full flex flex-col">
       <ViewerControls
         presets={product.cameraPresets}
+        activePreset={activePreset}
         onPreset={goToPreset}
         onDownload={download}
         onDownloadAll={downloadAll}

@@ -10,6 +10,7 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import type { Layer } from '../data/products';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -19,6 +20,7 @@ export interface SceneRefs {
   camera: THREE.PerspectiveCamera;
   renderer: THREE.WebGLRenderer;
   controls: OrbitControls;
+  labelRenderer: CSS2DRenderer;
 }
 
 export interface SceneOptions {
@@ -64,7 +66,20 @@ export function createScene(opts: SceneOptions): SceneRefs {
   canvas.style.display = 'block';
   canvas.style.width   = '100%';
   canvas.style.height  = '100%';
+  container.style.position = 'relative';
   container.appendChild(canvas);
+
+  /* ── CSS2DRenderer overlay for dynamic labels ── */
+  const labelRenderer = new CSS2DRenderer();
+  labelRenderer.setSize(w, h);
+  Object.assign(labelRenderer.domElement.style, {
+    position: 'absolute',
+    top: '0',
+    left: '0',
+    pointerEvents: 'none',
+    overflow: 'hidden',
+  });
+  container.appendChild(labelRenderer.domElement);
 
   /* ── OrbitControls ── */
   const controls = new OrbitControls(camera, canvas);
@@ -81,6 +96,7 @@ export function createScene(opts: SceneOptions): SceneRefs {
       const { width, height } = entry.contentRect;
       if (width < 1 || height < 1) continue;
       renderer.setSize(width, height);
+      labelRenderer.setSize(width, height);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
     }
@@ -91,7 +107,7 @@ export function createScene(opts: SceneOptions): SceneRefs {
   /* ── 4-Point Catalog Lighting ── */
   addCatalogLights(scene);
 
-  return { scene, camera, renderer, controls };
+  return { scene, camera, renderer, controls, labelRenderer };
 }
 
 /** Standard 4-point medical catalog lighting. */
@@ -132,12 +148,13 @@ function addCatalogLights(scene: THREE.Scene) {
 // ─── Render Loop ─────────────────────────────────────────────
 
 export function startRenderLoop(refs: SceneRefs): () => void {
-  const { renderer, scene, camera, controls } = refs;
+  const { renderer, labelRenderer, scene, camera, controls } = refs;
   let frameId: number;
   const tick = () => {
     frameId = requestAnimationFrame(tick);
     controls.update();
     renderer.render(scene, camera);
+    labelRenderer.render(scene, camera);
   };
   tick();
   return () => cancelAnimationFrame(frameId);
@@ -151,6 +168,9 @@ export function disposeScene(refs: SceneRefs, container: HTMLDivElement) {
   refs.renderer.dispose();
   if (refs.renderer.domElement.parentNode === container) {
     container.removeChild(refs.renderer.domElement);
+  }
+  if (refs.labelRenderer.domElement.parentNode === container) {
+    container.removeChild(refs.labelRenderer.domElement);
   }
 }
 
@@ -209,61 +229,50 @@ export function buildLayerMesh(
   return group;
 }
 
-// ─── Annotation helpers ──────────────────────────────────────
+// ─── Annotation helpers (CSS2DRenderer-based) ────────────────
 
 /**
- * Canvas-based text sprite — large & bold for print quality.
- * depthTest: false — always visible, never occluded by meshes.
- * scaleFactor: world-units width of the sprite (default 90).
+ * Creates a CSS2DObject label that always faces the camera and
+ * projects correctly regardless of camera angle.
+ * Position is in world-space — attach to a scene or object.
+ *
+ * @param sub  Optional muted sub-text (e.g. thickness "2mm")
  */
-export function createAnnotationSprite(text: string, scaleFactor = 90): THREE.Sprite {
-  const CW = 850, CH = 180;
-  const canvas = document.createElement('canvas');
-  canvas.width  = CW;
-  canvas.height = CH;
-  const ctx = canvas.getContext('2d')!;
-
-  // White pill background
-  const rx = 18; // corner radius
-  ctx.clearRect(0, 0, CW, CH);
-  ctx.fillStyle = 'rgba(255,255,255,0.97)';
-  ctx.beginPath();
-  ctx.moveTo(rx, 0);
-  ctx.lineTo(CW - rx, 0);
-  ctx.quadraticCurveTo(CW, 0, CW, rx);
-  ctx.lineTo(CW, CH - rx);
-  ctx.quadraticCurveTo(CW, CH, CW - rx, CH);
-  ctx.lineTo(rx, CH);
-  ctx.quadraticCurveTo(0, CH, 0, CH - rx);
-  ctx.lineTo(0, rx);
-  ctx.quadraticCurveTo(0, 0, rx, 0);
-  ctx.closePath();
-  ctx.fill();
-
-  // Thin border
-  ctx.strokeStyle = 'rgba(30,60,120,0.35)';
-  ctx.lineWidth = 5;
-  ctx.stroke();
-
-  // Bold text — minimum 60px per guide
-  ctx.fillStyle = '#1a2e50';
-  ctx.font = 'bold 68px Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, CW / 2, CH / 2);
-
-  const sprite = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: new THREE.CanvasTexture(canvas),
-      depthTest: false,   // CRITICAL: never occluded
-      depthWrite: false,
-      transparent: true,
-      sizeAttenuation: true,
-    }),
-  );
-  // Aspect = CW/CH = 850/180 ≈ 4.7
-  sprite.scale.set(scaleFactor, scaleFactor * (CH / CW), 1);
-  return sprite;
+export function createLabel(
+  scene: THREE.Scene,
+  position: THREE.Vector3,
+  text: string,
+  sub?: string,
+): CSS2DObject {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = [
+    'background:rgba(255,255,255,0.96)',
+    'border:1.5px solid rgba(26,46,80,0.22)',
+    'border-radius:5px',
+    'padding:2px 8px',
+    'font:600 11px/1.5 Inter,Arial,sans-serif',
+    'color:#1a2e50',
+    'white-space:nowrap',
+    'pointer-events:none',
+    'box-shadow:0 1px 5px rgba(0,0,0,0.10)',
+    'display:flex',
+    'align-items:center',
+    'gap:5px',
+    'user-select:none',
+  ].join(';');
+  const nameSpan = document.createElement('span');
+  nameSpan.textContent = text;
+  wrap.appendChild(nameSpan);
+  if (sub) {
+    const s = document.createElement('span');
+    s.style.cssText = 'font-weight:400;color:#6b7280;font-size:10px;';
+    s.textContent = sub;
+    wrap.appendChild(s);
+  }
+  const obj = new CSS2DObject(wrap);
+  obj.position.copy(position);
+  scene.add(obj);
+  return obj;
 }
 
 /** Small filled circle dot at annotation anchor point. */
@@ -275,53 +284,6 @@ export function createAnnotationDot(pos: THREE.Vector3): THREE.Mesh {
   mesh.position.copy(pos);
   mesh.renderOrder = 999;
   return mesh;
-}
-
-/** Straight leader line from anchor to label tip. */
-export function createAnnotationLine(
-  from: THREE.Vector3,
-  to:   THREE.Vector3,
-): THREE.Line {
-  const mat = new THREE.LineBasicMaterial({
-    color: 0x1a3a6e,
-    linewidth: 2,
-    depthTest: false,
-    depthWrite: false,
-    transparent: true,
-    opacity: 0.85,
-  });
-  const line = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints([from, to]),
-    mat,
-  );
-  line.renderOrder = 998;
-  return line;
-}
-
-/**
- * All-in-one annotation: dot at `anchor`, elbow leader line to `labelPos`,
- * sprite centred at `labelPos`.
- * The elbow line goes: anchor → elbowX → labelPos (orthogonal leader).
- */
-export function createAnnotationFull(
-  scene: THREE.Scene,
-  anchor: THREE.Vector3,
-  labelPos: THREE.Vector3,
-  text: string,
-  spriteScale = 90,
-): void {
-  // Elbow point: same Y as labelPos, same X as anchor
-  const elbow = new THREE.Vector3(anchor.x, labelPos.y, anchor.z);
-
-  scene.add(createAnnotationDot(anchor));
-  scene.add(createAnnotationLine(anchor, elbow));
-  scene.add(createAnnotationLine(elbow, labelPos));
-
-  const sprite = createAnnotationSprite(text, spriteScale);
-  // Place sprite so its LEFT edge touches labelPos
-  const halfW = sprite.scale.x / 2;
-  sprite.position.set(labelPos.x + halfW, labelPos.y, labelPos.z);
-  scene.add(sprite);
 }
 
 // ─── Download helpers ────────────────────────────────────────

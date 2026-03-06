@@ -2,59 +2,74 @@
  * ViewerControls.tsx
  * ─────────────────────────────────────────────────────────────
  * Reusable control bar untuk semua 3D viewer.
- * Dipakai oleh: AssembledPanel3D, ExplodedPanel3D,
- *               CurvingAssembled3D, CurvingExploded3D
  *
  * Props:
- *   presets      — daftar CameraPreset dari product
- *   onPreset     — callback ketika tombol preset diklik
- *   onDownload   — callback unduh sudut kamera saat ini
+ *   presets       — daftar CameraPreset dari product
+ *   activePreset  — nama preset yang sedang aktif
+ *   onPreset      — callback ketika tombol preset diklik
+ *   onDownload    — callback unduh sudut kamera saat ini
  *   onDownloadAll — callback unduh semua sudut kamera
  * ─────────────────────────────────────────────────────────────
  */
 
+import { Camera, Images } from 'lucide-react';
 import type { CameraPreset } from '../data/products';
 
 interface Props {
   presets: CameraPreset[];
+  activePreset: string | null;
   onPreset: (preset: CameraPreset) => void;
   onDownload: (name: string) => void;
   onDownloadAll: () => void;
 }
 
-export function ViewerControls({ presets, onPreset, onDownload, onDownloadAll }: Props) {
+export function ViewerControls({ presets, activePreset, onPreset, onDownload, onDownloadAll }: Props) {
   return (
-    <div className="bg-white/95 px-3 py-2 border-b border-gray-100 flex flex-wrap gap-2 items-center justify-between flex-shrink-0">
-      <div className="flex flex-wrap gap-1.5 items-center">
-        <span className="text-xs font-semibold text-gray-500 mr-1">Sudut Kamera:</span>
-        {presets.map((p) => (
-          <button
-            key={p.name}
-            onClick={() => onPreset(p)}
-            className="px-2.5 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition"
-          >
-            {p.name}
-          </button>
-        ))}
+    <div className="bg-white/98 px-3 py-1.5 border-b border-gray-100 flex flex-wrap gap-x-3 gap-y-1.5 items-center justify-between flex-shrink-0">
+
+      {/* Camera preset buttons */}
+      <div className="flex flex-wrap gap-1 items-center">
+        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mr-1">Sudut:</span>
+        {presets.map((p) => {
+          const isActive = p.name === activePreset;
+          return (
+            <button
+              key={p.name}
+              onClick={() => onPreset(p)}
+              className={[
+                'px-2.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer',
+                isActive
+                  ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-200'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-600',
+              ].join(' ')}
+            >
+              {p.name}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="flex gap-1.5">
+      {/* Download buttons */}
+      <div className="flex gap-1.5 items-center">
         <button
           onClick={onDownloadAll}
-          className="px-3 py-1 bg-green-600 text-white text-xs font-semibold rounded hover:bg-green-700 transition"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-green-700 border border-green-200 bg-green-50 hover:bg-green-100 rounded-md transition cursor-pointer"
         >
-          📥 Semua Sudut
+          <Images className="h-3.5 w-3.5" />
+          Semua Sudut
         </button>
         <button
           onClick={() => onDownload('current')}
-          className="px-3 py-1 bg-purple-600 text-white text-xs font-semibold rounded hover:bg-purple-700 transition"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-gray-700 border border-gray-200 bg-white hover:border-blue-300 hover:text-blue-600 rounded-md transition cursor-pointer"
         >
-          📷 Unduh
+          <Camera className="h-3.5 w-3.5" />
+          Unduh
         </button>
       </div>
 
-      <p className="w-full text-[11px] text-gray-400 mt-0.5">
-        🖱️ Drag putar · Scroll zoom · Klik kanan geser
+      {/* Hint */}
+      <p className="w-full text-[10px] text-gray-400 italic">
+        Drag: putar &middot; Scroll: zoom &middot; Klik kanan: geser
       </p>
     </div>
   );

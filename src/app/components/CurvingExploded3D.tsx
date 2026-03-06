@@ -19,10 +19,11 @@
  * ─────────────────────────────────────────────────────────────
  */
 
+import { useState } from 'react';
 import * as THREE from 'three';
 import type { Product, CameraPreset } from '../data/products';
 import {
-  applyCameraPreset, downloadPNG, createAnnotationFull,
+  applyCameraPreset, downloadPNG, createLabel, createAnnotationDot,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
@@ -223,42 +224,28 @@ function buildExplodedScene(scene: THREE.Scene, L: number) {
     }
   });
 
-  // ── Annotations ───────────────────────────────────────────
-  // Semua label di kanan (X positif). Setiap label punya Z sesuai
-  // layer-nya dan Y offset untuk kejelasan.
-  const xL = W + 55;
-  const ySl = [ W + 44, W + 22, W, -20, -42 ];
+  // ── Annotations (CSS2D) ───────────────────────────────────
+  const annotData = [
+    { anchor: new THREE.Vector3(-W - 0.6, W * 0.6, zPos[0]),                   label: 'Anodized Coating' },
+    { anchor: new THREE.Vector3(-W / 2, W * 0.5, zPos[1]),                     label: 'Aluminium Angle 40×40' },
+    { anchor: new THREE.Vector3(-W - 1.25, T + (W - T * 2) * 0.5, zPos[2]),   label: 'White Silicone' },
+    { anchor: new THREE.Vector3(W * 0.35, -(T / 2 + 1.5), zPos[3]),           label: 'Pop Rivets' },
+    { anchor: new THREE.Vector3(W + 1, -2, zPos[4]),                           label: 'Panel Dinding / Lantai' },
+  ];
 
-  createAnnotationFull(scene,
-    new THREE.Vector3(-W - 0.6, W * 0.6, zPos[0]),
-    new THREE.Vector3(xL, ySl[0], zPos[0]),
-    'Anodized Coating',
-  );
-  createAnnotationFull(scene,
-    new THREE.Vector3(-W / 2, W * 0.5, zPos[1]),
-    new THREE.Vector3(xL, ySl[1], zPos[1]),
-    'Aluminium Angle 40×40',
-  );
-  createAnnotationFull(scene,
-    new THREE.Vector3(-W - 1.25, T + (W - T * 2) * 0.5, zPos[2]),
-    new THREE.Vector3(xL, ySl[2], zPos[2]),
-    'White Silicone',
-  );
-  createAnnotationFull(scene,
-    new THREE.Vector3(W * 0.35, -(T / 2 + 1.5), zPos[3] + 0),
-    new THREE.Vector3(xL, ySl[3], zPos[3]),
-    'Pop Rivets',
-  );
-  createAnnotationFull(scene,
-    new THREE.Vector3(W + 1, -2, zPos[4]),
-    new THREE.Vector3(xL, ySl[4], zPos[4]),
-    'Panel Dinding / Lantai',
-  );
+  annotData.forEach(({ anchor, label }) => {
+    scene.add(createAnnotationDot(anchor));
+    createLabel(scene, anchor.clone().add(new THREE.Vector3(10, 0, 0)), label);
+  });
 }
 
 // ─── React component ─────────────────────────────────────────
 
 export function CurvingExploded3D({ product }: Props) {
+  const [activePreset, setActivePreset] = useState<string>(
+    product.cameraPresets[0]?.name ?? '',
+  );
+
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: {
       cameraStart: product.explodedCameraStart,
@@ -272,14 +259,17 @@ export function CurvingExploded3D({ product }: Props) {
     deps: [product],
   });
 
-  const goTo  = (p: CameraPreset) => refsRef.current && applyCameraPreset(refsRef.current, p.position, p.target);
-  const dl    = (name: string)    => refsRef.current && downloadPNG(refsRef.current.renderer, `${product.id}-exploded-${name.toLowerCase().replace(/\s+/g, '-')}.png`);
+  const goTo = (p: CameraPreset) => {
+    if (refsRef.current) applyCameraPreset(refsRef.current, p.position, p.target);
+    setActivePreset(p.name);
+  };
+  const dl    = (name: string) => refsRef.current && downloadPNG(refsRef.current.renderer, `${product.id}-exploded-${name.toLowerCase().replace(/\s+/g, '-')}.png`);
   const dlAll = () => product.cameraPresets.forEach((p, i) =>
     setTimeout(() => { goTo(p); setTimeout(() => dl(p.name), 220); }, i * 520));
 
   return (
     <div className="w-full h-full flex flex-col">
-      <ViewerControls presets={product.cameraPresets} onPreset={goTo} onDownload={dl} onDownloadAll={dlAll} />
+      <ViewerControls presets={product.cameraPresets} activePreset={activePreset} onPreset={goTo} onDownload={dl} onDownloadAll={dlAll} />
       <div className="flex-1 min-h-0">
         <div ref={mountRef} className="w-full h-full" />
       </div>

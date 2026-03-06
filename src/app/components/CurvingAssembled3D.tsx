@@ -20,10 +20,11 @@
  * ─────────────────────────────────────────────────────────────
  */
 
+import { useState } from 'react';
 import * as THREE from 'three';
 import type { Product, CameraPreset } from '../data/products';
 import {
-  applyCameraPreset, downloadPNG, createAnnotationFull,
+  applyCameraPreset, downloadPNG, createLabel, createAnnotationDot,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
@@ -175,44 +176,30 @@ function buildAssembledScene(scene: THREE.Scene, L: number) {
     scene.add(capB);
   }
 
-  // ── 4. Annotations ───────────────────────────────────────
-  // Semua label di sisi kanan profil (+X), elbow ke atas.
+  // ── 4. Annotations (CSS2D) ───────────────────────────────
+  const zA = L * 0.28;
 
-  const zA  = L * 0.28;
-  const xL  = W + 55;
+  const anchors = [
+    { pos: new THREE.Vector3(-W / 2, W * 0.6, zA),           label: 'Aluminium Angle 40×40' },
+    { pos: new THREE.Vector3(-W - 0.5, W * 0.4, zA),         label: 'Anodized Coating' },
+    { pos: new THREE.Vector3(-W / 2 + T / 2, -0.75, zA),     label: 'White Silicone' },
+    { pos: new THREE.Vector3(W * 0.35, -(T / 2 + 1), zA),    label: 'Pop Rivets' },
+    { pos: new THREE.Vector3(-W - 0.75, T + R + (W - T - R) * 0.5, zA), label: 'Sealant Vertikal' },
+  ];
 
-  const Y = [W + 46, W + 24, W + 2, -16, -34];
-
-  createAnnotationFull(scene,
-    new THREE.Vector3(-W / 2, W * 0.6, zA),
-    new THREE.Vector3(xL, Y[0], zA),
-    'Aluminium Angle 40×40',
-  );
-  createAnnotationFull(scene,
-    new THREE.Vector3(-W - 0.5, W * 0.4, zA),
-    new THREE.Vector3(xL, Y[1], zA),
-    'Anodized Coating',
-  );
-  createAnnotationFull(scene,
-    new THREE.Vector3(-W / 2 + T / 2, -0.75, zA),
-    new THREE.Vector3(xL, Y[2], zA),
-    'White Silicone',
-  );
-  createAnnotationFull(scene,
-    new THREE.Vector3(W * 0.35, -(T / 2 + 1), zA),
-    new THREE.Vector3(xL, Y[3], zA),
-    'Pop Rivets',
-  );
-  createAnnotationFull(scene,
-    new THREE.Vector3(-W - 0.75, T + R + (W - T - R) * 0.5, zA),
-    new THREE.Vector3(xL, Y[4], zA),
-    'Sealant Vertikal',
-  );
+  anchors.forEach(({ pos, label }) => {
+    scene.add(createAnnotationDot(pos));
+    createLabel(scene, pos.clone().add(new THREE.Vector3(8, 0, 0)), label);
+  });
 }
 
 // ─── React component ─────────────────────────────────────────
 
 export function CurvingAssembled3D({ product }: Props) {
+  const [activePreset, setActivePreset] = useState<string>(
+    product.cameraPresets[0]?.name ?? '',
+  );
+
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: {
       cameraStart: product.assembledCameraStart,
@@ -226,14 +213,17 @@ export function CurvingAssembled3D({ product }: Props) {
     deps: [product],
   });
 
-  const goTo  = (p: CameraPreset) => refsRef.current && applyCameraPreset(refsRef.current, p.position, p.target);
-  const dl    = (name: string)    => refsRef.current && downloadPNG(refsRef.current.renderer, `${product.id}-assembled-${name.toLowerCase().replace(/\s+/g, '-')}.png`);
+  const goTo = (p: CameraPreset) => {
+    if (refsRef.current) applyCameraPreset(refsRef.current, p.position, p.target);
+    setActivePreset(p.name);
+  };
+  const dl    = (name: string) => refsRef.current && downloadPNG(refsRef.current.renderer, `${product.id}-assembled-${name.toLowerCase().replace(/\s+/g, '-')}.png`);
   const dlAll = () => product.cameraPresets.forEach((p, i) =>
     setTimeout(() => { goTo(p); setTimeout(() => dl(p.name), 220); }, i * 520));
 
   return (
     <div className="w-full h-full flex flex-col">
-      <ViewerControls presets={product.cameraPresets} onPreset={goTo} onDownload={dl} onDownloadAll={dlAll} />
+      <ViewerControls presets={product.cameraPresets} activePreset={activePreset} onPreset={goTo} onDownload={dl} onDownloadAll={dlAll} />
       <div className="flex-1 min-h-0">
         <div ref={mountRef} className="w-full h-full" />
       </div>

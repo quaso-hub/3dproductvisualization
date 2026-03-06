@@ -42,9 +42,9 @@ const HERMETIC_DOOR: Product = {
    */
   layers: [
     { name: 'Stainless Steel Face (Luar)', thickness: 0.8, color: 0xc8d4dc, roughness: 0.15, metalness: 0.85 },
-    { name: 'PIR Foam Core',               thickness: 45,  color: 0xe8c870, roughness: 0.88, metalness: 0.0  },
+    { name: 'PIR Foam Core',               thickness: 45,  color: 0xcfbd9a, roughness: 0.88, metalness: 0.0  },
     { name: 'Timbal (Pb) 2mm',             thickness: 2,   color: 0x8a9198, roughness: 0.40, metalness: 0.70 },
-    { name: 'PIR Foam Core',               thickness: 45,  color: 0xe8c870, roughness: 0.88, metalness: 0.0  },
+    { name: 'PIR Foam Core',               thickness: 45,  color: 0xcfbd9a, roughness: 0.88, metalness: 0.0  },
     { name: 'Stainless Steel Face (Dalam)', thickness: 0.8, color: 0xc8d4dc, roughness: 0.15, metalness: 0.85 },
     { name: 'Kaca Pb (Lead Glass 5mm)',    thickness: 5,   color: 0x88c4d8, roughness: 0.05, metalness: 0.0  },
   ],
@@ -72,16 +72,16 @@ const HERMETIC_DOOR: Product = {
   ],
 
   cameraPresets: [
-    { name: 'Isometric',        position: [220, 160, 280],  target: [0, 100, 0]  },
-    { name: 'Tampak Depan',     position: [0,   105, 350],  target: [0, 105, 0]  },
-    { name: 'Tampak Samping',   position: [350, 105, 0],    target: [0, 105, 0]  },
-    { name: 'Detail Atas',      position: [80,  280, 200],  target: [0, 210, 0]  },
-    { name: 'Detail Jendela',   position: [80,  168, 200],  target: [0, 168, 0]  },
-    { name: 'Tampak Atas',      position: [0,   450, 0],    target: [0, 105, 0]  },
+    { name: 'Isometric',        position: [220, 160, 300],  target: [0, 0, 0]  },
+    { name: 'Tampak Depan',     position: [0,   0,   350],  target: [0, 0, 0]  },
+    { name: 'Tampak Samping',   position: [350, 0,   0],    target: [0, 0, 0]  },
+    { name: 'Detail Atas',      position: [80,  180, 200],  target: [0, 80, 0] },
+    { name: 'Detail Jendela',   position: [80,  60,  200],  target: [0, 60, 0] },
+    { name: 'Tampak Atas',      position: [0,   450, 0],    target: [0, 0, 0]  },
   ],
 
-  assembledCameraStart: [220, 160, 280],
-  explodedCameraStart:  [220, 105, 420],
+  assembledCameraStart: [220, 160, 300],
+  explodedCameraStart:  [220, 0,   420],
 };
 
 export default HERMETIC_DOOR;

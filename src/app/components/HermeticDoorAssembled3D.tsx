@@ -10,11 +10,12 @@
  * ─────────────────────────────────────────────────────────────
  */
 
+import { useState } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Product, CameraPreset } from '../data/products';
 import {
-  applyCameraPreset, downloadPNG, createAnnotationFull,
+  applyCameraPreset, downloadPNG, createLabel, createAnnotationDot,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
@@ -38,7 +39,6 @@ const WT  = 0.6;
 const HW  = DW + 50;
 const HH  = 22;
 const HDT = 16;
-const HY  = DH + 2;
 
 // Frame
 const FT  = 8;
@@ -50,12 +50,12 @@ const WALL_HEIGHT = DH + FT * 2;
 
 // ─── Materials ───────────────────────────────────────────────
 
-function matSS(roughness = 0.08, metalness = 0.92) {
+function matSS(roughness = 0.22, metalness = 0.80) {
   return new THREE.MeshStandardMaterial({
     color: 0xd0dde6,
     roughness,
     metalness,
-    envMapIntensity: 1.5,
+    envMapIntensity: 0.75,
   });
 }
 
@@ -114,18 +114,19 @@ function matSensor() {
 
 function buildDoorShape(): THREE.Shape {
   const half = DW / 2;
+  const hh   = DH / 2;   // centred: y from -hh to +hh
   const shape = new THREE.Shape();
-  shape.moveTo(-half, 0);
-  shape.lineTo(half, 0);
-  shape.lineTo(half, DH);
-  shape.lineTo(-half, DH);
+  shape.moveTo(-half, -hh);
+  shape.lineTo(half, -hh);
+  shape.lineTo(half, hh);
+  shape.lineTo(-half, hh);
   shape.closePath();
 
   const hole = new THREE.Path();
   const wx1 = WX - WW / 2;
   const wx2 = WX + WW / 2;
-  const wy1 = WY;
-  const wy2 = WY + WH;
+  const wy1 = WY - DH / 2;          // shift window Y to centred space
+  const wy2 = wy1 + WH;
   hole.moveTo(wx1, wy1);
   hole.lineTo(wx2, wy1);
   hole.lineTo(wx2, wy2);
@@ -141,6 +142,7 @@ function buildDoorShape(): THREE.Shape {
 function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
 
   // ── 0a. RoomEnvironment for realistic reflections (PBR) ────
+  renderer.toneMappingExposure = 0.90;  // reduce from default 1.2 — less silau
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environment = envMap;
@@ -152,7 +154,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     new THREE.BoxGeometry(WALL_WIDTH, WALL_HEIGHT, 2),
     matWall(),
   );
-  wallMesh.position.set(0, WALL_HEIGHT / 2 - FT, -WALL_DEPTH);
+  wallMesh.position.set(0, 0, -WALL_DEPTH);
   wallMesh.receiveShadow = true;
   scene.add(wallMesh);
 
@@ -164,7 +166,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     new THREE.BoxGeometry(DW + FT * 2, FT, DT + 4),
     frameMat,
   );
-  sill.position.set(0, -FT / 2, 0);
+  sill.position.set(0, -DH / 2 - FT / 2, 0);
   sill.castShadow = true;
   scene.add(sill);
 
@@ -173,7 +175,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     new THREE.BoxGeometry(FT, DH + FT, DT + 4),
     frameMat,
   );
-  jambL.position.set(-DW / 2 - FT / 2, DH / 2 - FT / 2, 0);
+  jambL.position.set(-DW / 2 - FT / 2, 0, 0);
   jambL.castShadow = true;
   scene.add(jambL);
 
@@ -187,7 +189,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     new THREE.BoxGeometry(DW + FT * 2, FT, DT + 4),
     frameMat,
   );
-  head.position.set(0, DH + FT / 2, 0);
+  head.position.set(0, DH / 2 + FT / 2, 0);
   head.castShadow = true;
   scene.add(head);
 
@@ -212,17 +214,18 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   // ── 3. Lead Glass in window cutout ───────────────────────
   const glassGeo = new THREE.BoxGeometry(WW, WH, WT);
   const glassMesh = new THREE.Mesh(glassGeo, matGlass());
-  glassMesh.position.set(DOOR_OFFSET + WX, WY + WH / 2, 0);
+  glassMesh.position.set(DOOR_OFFSET + WX, WY + WH / 2 - DH / 2, 0);
   scene.add(glassMesh);
 
   // Glass frame (thin SS border around window)
   const gfT = 1.2;
   const glassFrMat = matSS(0.15);
+  const wyC = WY + WH / 2 - DH / 2;  // centred window Y
   [
-    { pos: [DOOR_OFFSET + WX, WY + WH + gfT / 2, 0], size: [WW + gfT * 2, gfT, DT * 0.4] },
-    { pos: [DOOR_OFFSET + WX, WY - gfT / 2, 0], size: [WW + gfT * 2, gfT, DT * 0.4] },
-    { pos: [DOOR_OFFSET + WX - WW / 2 - gfT / 2, WY + WH / 2, 0], size: [gfT, WH, DT * 0.4] },
-    { pos: [DOOR_OFFSET + WX + WW / 2 + gfT / 2, WY + WH / 2, 0], size: [gfT, WH, DT * 0.4] },
+    { pos: [DOOR_OFFSET + WX, wyC + WH / 2 + gfT / 2, 0], size: [WW + gfT * 2, gfT, DT * 0.4] },
+    { pos: [DOOR_OFFSET + WX, wyC - WH / 2 - gfT / 2, 0], size: [WW + gfT * 2, gfT, DT * 0.4] },
+    { pos: [DOOR_OFFSET + WX - WW / 2 - gfT / 2, wyC, 0], size: [gfT, WH, DT * 0.4] },
+    { pos: [DOOR_OFFSET + WX + WW / 2 + gfT / 2, wyC, 0], size: [gfT, WH, DT * 0.4] },
   ].forEach(({ pos, size }) => {
     const frame = new THREE.Mesh(new THREE.BoxGeometry(...size as [number, number, number]), glassFrMat);
     frame.position.set(...pos as [number, number, number]);
@@ -234,7 +237,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     new THREE.BoxGeometry(DW - 4, 2.5, 2),
     matLead(),
   );
-  pbStripe.position.set(DOOR_OFFSET, DH - 1.25, 0);
+  pbStripe.position.set(DOOR_OFFSET, DH / 2 - 1.25, 0);
   scene.add(pbStripe);
 
   // ── 5. Horizontal D-handle (right side) ──────────────────
@@ -242,7 +245,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   const handleGeo = new THREE.CylinderGeometry(0.8, 0.8, 18, 12);
   const handleBar = new THREE.Mesh(handleGeo, handleMat);
   handleBar.rotation.z = Math.PI / 2;
-  handleBar.position.set(DOOR_OFFSET + DW / 2 - 10, DH / 2 + 3, DT / 2 + 3);
+  handleBar.position.set(DOOR_OFFSET + DW / 2 - 10, 3, DT / 2 + 3);
   scene.add(handleBar);
 
   // Handle brackets
@@ -250,17 +253,18 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   [-19, -1].forEach((offset) => {
     const bracket = new THREE.Mesh(bracketGeo, handleMat);
     bracket.rotation.x = Math.PI / 2;
-    bracket.position.set(DOOR_OFFSET + DW / 2 + offset, DH / 2 + 3, DT / 2 + 1);
+    bracket.position.set(DOOR_OFFSET + DW / 2 + offset, 3, DT / 2 + 1);
     scene.add(bracket);
   });
 
   // ── 6. Overhead housing ───────────────────────────────────
   const housingMat = matHousing();
+  const housingY   = DH / 2 + 2;   // just above door top (centred geometry)
   const housing = new THREE.Mesh(
     new THREE.BoxGeometry(HW, HH, HDT),
     housingMat,
   );
-  housing.position.set(0, HY + HH / 2, -(HDT - DT) / 2);
+  housing.position.set(0, housingY + HH / 2, -(HDT - DT) / 2);
   housing.castShadow = true;
   scene.add(housing);
 
@@ -272,7 +276,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
 
   // Housing motor detail (3 horizontal rib lines)
   const ribMat = new THREE.LineBasicMaterial({ color: 0x3a4350, opacity: 0.6, transparent: true, linewidth: 2 });
-  [HY + HH * 0.75, HY + HH * 0.5, HY + HH * 0.25].forEach((ribY) => {
+  [housingY + HH * 0.75, housingY + HH * 0.5, housingY + HH * 0.25].forEach((ribY) => {
     const ribPts = [
       new THREE.Vector3(-HW / 2 + 2, ribY, -(HDT - DT) / 2 + HDT / 2),
       new THREE.Vector3(HW / 2 - 2, ribY, -(HDT - DT) / 2 + HDT / 2),
@@ -290,7 +294,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     emissive: 0x1a1f2e,
   });
   const indicator = new THREE.Mesh(indicatorGeo, indicatorMat);
-  indicator.position.set(0, HY + HH * 0.88, -(HDT - DT) / 2 + HDT / 2 + 0.1);
+  indicator.position.set(0, housingY + HH * 0.88, -(HDT - DT) / 2 + HDT / 2 + 0.1);
   scene.add(indicator);
 
   // ── 7. Sensor boxes (left/right of frame) ────────────────
@@ -298,7 +302,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   const sensorMat = matSensor();
   [-14, 14].forEach((xPos) => {
     const sensor = new THREE.Mesh(sensorGeo, sensorMat);
-    sensor.position.set(xPos, DH / 2, -12);
+    sensor.position.set(xPos, 0, -12);
     scene.add(sensor);
   });
 
@@ -309,8 +313,9 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     roughness: 0.15,
     metalness: 0.9,
   });
+  const trackY = DH / 2 + 2 + HH * 0.3;
   const track = new THREE.Mesh(trackGeo, trackMat);
-  track.position.set(0, HY + HH * 0.3, -(HDT - DT) / 2 - 2);
+  track.position.set(0, trackY, -(HDT - DT) / 2 - 2);
   scene.add(track);
 
   // Track wheels (rollers)
@@ -323,7 +328,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   [-30, 0, 30].forEach((xOff) => {
     const roller = new THREE.Mesh(rollerGeo, rollerMat);
     roller.rotation.x = Math.PI / 2;
-    roller.position.set(xOff, HY + HH * 0.3, -(HDT - DT) / 2 - 2);
+    roller.position.set(xOff, trackY, -(HDT - DT) / 2 - 2);
     scene.add(roller);
   });
 
@@ -346,7 +351,8 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   });
 
   const sensorFaceZ = -(HDT - DT) / 2 + HDT / 2 + 0.1;
-  const sensorY = HY + HH * 0.55;
+  const housingYRef = DH / 2 + 2;
+  const sensorY     = housingYRef + HH * 0.55;
 
   const sGreen = new THREE.Mesh(sensorGeoGreen, matGreen);
   sGreen.position.set(-HW / 2 + 10, sensorY, sensorFaceZ);
@@ -356,55 +362,33 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   sAmber.position.set(-HW / 2 + 18, sensorY, sensorFaceZ);
   scene.add(sAmber);
 
-  // ── 10. Annotations (split left/right) ────────────────────
-  const zA = 0;
-  const xR = DW / 2 + 75;
-  const YsR = [DH + 55, DH + 25, DH - 10, WY + WH / 2 + 20];
+  // ── 10. Annotations (CSS2D) ──────────────────────────────────
+  const zA  = 0;
+  const hYR = DH / 2 + 2;
 
-  createAnnotationFull(scene,
-    new THREE.Vector3(0, HY + HH / 2, zA),
-    new THREE.Vector3(xR, YsR[0], zA),
-    'Electric Motor Housing',
-  );
-  createAnnotationFull(scene,
-    new THREE.Vector3(0, HY + HH * 0.3, zA),
-    new THREE.Vector3(xR, YsR[1], zA),
-    'Sliding Track Rail',
-  );
-  createAnnotationFull(scene,
-    new THREE.Vector3(-HW / 2 + 14, sensorY, zA),
-    new THREE.Vector3(xR, YsR[2], zA),
-    'Sensor Indicator',
-  );
-  createAnnotationFull(scene,
-    new THREE.Vector3(DOOR_OFFSET + WX + WW / 2, WY + WH / 2, zA),
-    new THREE.Vector3(xR, YsR[3], zA),
-    'Lead Glass Pb 5mm',
-  );
+  const annotList = [
+    { pos: new THREE.Vector3(0, hYR + HH / 2, zA),                         label: 'Electric Motor Housing' },
+    { pos: new THREE.Vector3(0, trackY, zA),                                label: 'Sliding Track Rail' },
+    { pos: new THREE.Vector3(-HW / 2 + 14, sensorY, zA),                   label: 'Sensor Indicator' },
+    { pos: new THREE.Vector3(DOOR_OFFSET + WX + WW / 2, WY + WH / 2 - DH / 2, zA), label: 'Lead Glass Pb 5mm' },
+    { pos: new THREE.Vector3(DOOR_OFFSET - DW / 2, 0, zA),                 label: 'Stainless Steel' },
+    { pos: new THREE.Vector3(DOOR_OFFSET, DH / 2 - 1.25, zA),              label: 'Lapis Pb 2mm' },
+    { pos: new THREE.Vector3(DOOR_OFFSET + DW / 2 - 10, 3, zA),            label: 'Handle SS' },
+  ];
 
-  const xL = -DW / 2 - 75;
-  const YsL = [DH * 0.75, DH * 0.50, DH * 0.25];
-
-  createAnnotationFull(scene,
-    new THREE.Vector3(DOOR_OFFSET - DW / 2, DH * 0.5, zA),
-    new THREE.Vector3(xL, YsL[0], zA),
-    'Stainless Steel',
-  );
-  createAnnotationFull(scene,
-    new THREE.Vector3(DOOR_OFFSET, DH - 1.25, zA),
-    new THREE.Vector3(xL, YsL[1], zA),
-    'Lapis Pb 2mm',
-  );
-  createAnnotationFull(scene,
-    new THREE.Vector3(DOOR_OFFSET + DW / 2 - 10, DH / 2 + 3, zA),
-    new THREE.Vector3(xL, YsL[2], zA),
-    'Handle SS',
-  );
+  annotList.forEach(({ pos, label }) => {
+    scene.add(createAnnotationDot(pos));
+    createLabel(scene, pos.clone().add(new THREE.Vector3(8, 0, 0)), label);
+  });
 }
 
 // ─── React component ─────────────────────────────────────────
 
 export function HermeticDoorAssembled3D({ product }: Props) {
+  const [activePreset, setActivePreset] = useState<string>(
+    product.cameraPresets[0]?.name ?? '',
+  );
+
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: {
       cameraStart: product.assembledCameraStart,
@@ -413,20 +397,23 @@ export function HermeticDoorAssembled3D({ product }: Props) {
     },
     onInit: (refs) => {
       buildScene(refs.scene, refs.renderer);
-      const p = product.cameraPresets[0];  // Isometric: sets both camera.position + controls.target
+      const p = product.cameraPresets[0];
       applyCameraPreset(refs, p.position, p.target);
     },
     deps: [product],
   });
 
-  const goTo  = (p: CameraPreset) => refsRef.current && applyCameraPreset(refsRef.current, p.position, p.target);
-  const dl    = (name: string)    => refsRef.current && downloadPNG(refsRef.current.renderer, `${product.id}-assembled-${name.toLowerCase().replace(/\s+/g, '-')}.png`);
+  const goTo = (p: CameraPreset) => {
+    if (refsRef.current) applyCameraPreset(refsRef.current, p.position, p.target);
+    setActivePreset(p.name);
+  };
+  const dl    = (name: string) => refsRef.current && downloadPNG(refsRef.current.renderer, `${product.id}-assembled-${name.toLowerCase().replace(/\s+/g, '-')}.png`);
   const dlAll = () => product.cameraPresets.forEach((p, i) =>
     setTimeout(() => { goTo(p); setTimeout(() => dl(p.name), 220); }, i * 520));
 
   return (
     <div className="w-full h-full flex flex-col">
-      <ViewerControls presets={product.cameraPresets} onPreset={goTo} onDownload={dl} onDownloadAll={dlAll} />
+      <ViewerControls presets={product.cameraPresets} activePreset={activePreset} onPreset={goTo} onDownload={dl} onDownloadAll={dlAll} />
       <div className="flex-1 min-h-0">
         <div ref={mountRef} className="w-full h-full" />
       </div>
