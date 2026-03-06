@@ -240,6 +240,8 @@ export function HermeticDoorExploded3D({ product }: Props) {
     },
     onInit: (refs) => {
       buildExplodedScene(refs.scene, refs.renderer, product.layers);
+      refs.controls.target.set(0, 105, 0);  // Center of door (DH / 2 = 105)
+      refs.controls.update();
     },
     deps: [product],
   });
