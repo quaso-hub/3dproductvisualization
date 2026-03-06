@@ -385,6 +385,36 @@ Import OrbitControls dengan path yang benar:
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 ```
 
+## Skills yang Wajib Diaktifkan
+
+Sebelum mengerjakan apapun di codebase ini, load skill yang relevan.
+
+| Pekerjaan | Skill |
+|-----------|-------|
+| Scene / geometry / renderer Three.js | `@threejs-skills` |
+| Viewer 3D produk, WebGL, interaktif | `@3d-web-experience` |
+| GLSL shader / custom material | `@shader-programming-glsl` + `@threejs-skills` |
+| Komponen React / styling halaman | `@frontend-design` |
+| Warna, tipografi, UX, aksesibilitas | `@ui-ux-pro-max` |
+| Audit UI / compliance aksesibilitas | `@web-design-guidelines` |
+| Generate UI di Google Stitch | `@stitch-ui-design` |
+| Buat DESIGN.md dari Stitch project | `@design-md` |
+| Orkestrasi alur desain multi-step | `@design-orchestration` |
+| Poster / seni visual statis (PNG/PDF) | `@canvas-design` |
+| Review performa React | `@react-best-practices` |
+| TypeScript strict / type-level | `@typescript-expert` |
+
+**Kombinasi umum:**
+- Viewer 3D baru → `@threejs-skills` + `@3d-web-experience` + `@frontend-design`
+- Redesign UI → `@ui-ux-pro-max` + `@frontend-design` + `@web-design-guidelines`
+- Material custom / shader → `@shader-programming-glsl` + `@threejs-skills`
+
+Skills path:
+- Claude Code: `C:\Users\warma\.claude\skills\`
+- Gemini / agent lain: `C:\Users\warma\.gemini\antigravity\skills\`
+
+---
+
 ## Checklist Kualitas Final
 
 - [ ] Transparent background (renderer alpha: true)
