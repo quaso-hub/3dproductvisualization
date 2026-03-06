@@ -104,10 +104,60 @@ For products that need their own 3D scene (not a panel layer stack):
 | `applyCameraPreset(refs, position, target)` | Moves camera to preset. |
 | `visualThickness(layer)` | Scales thin layers for visibility. |
 | `buildLayerMesh(layer, w, h, t)` | `THREE.Group` with MeshStandardMaterial + EdgesGeometry. |
-| `createLabel(scene, position, text)` | CSS2DObject label (always faces camera). |
-| `createAnnotationDot(pos)` | Dark blue sphere at anchor. |
-| `createAnnotationLine(scene, from, to)` | Gray leader line. |
+| `createLabel(scene, position, text)` | CSS2DObject label (always faces camera). Lightweight: no border, no shadow. |
+| `createAnnotationDot(pos)` | Blue (`0x3b82f6`) sphere at anchor. depthTest:false, renderOrder:999. |
+| `createAnnotationLine(scene, from, to)` | Gray leader line. depthTest:false, renderOrder:998. |
+| `placeAnnotations(scene, items, labelX, yRange)` | **PRIMARY API** — place all annotations at once. See below. |
 | `downloadPNG(renderer, filename)` | Save canvas as PNG. |
+
+### `placeAnnotations()` — PRIMARY Annotation API
+
+**ALWAYS use this. NEVER call createAnnotationDot/Line/Label individually for layer annotations.**
+
+```typescript
+placeAnnotations(
+  scene: THREE.Scene,
+  items: Array<{ anchor: THREE.Vector3; label: string; labelZ?: number }>,
+  labelX: number,      // X position of label column (right side of geometry)
+  yRange: [number, number], // [yMin, yMax] — vertical spread range for labels
+): void
+```
+
+**How it works:**
+1. Sorts items by `anchor.y` descending (top anchor → top label)
+2. Distributes labels evenly across `yRange`
+3. Draws **two-segment elbow**: `anchor → knee(labelX-12, labelY) → label(labelX, labelY)`
+4. Both segments: `depthTest:false`, `renderOrder:998`
+5. Calls `createAnnotationDot(anchor)` + `createLabel(scene, labelPos, label)`
+
+**Usage pattern:**
+```typescript
+const annotItems: { anchor: THREE.Vector3; label: string; labelZ?: number }[] = [];
+
+layers.forEach((layer, i) => {
+  const z = /* layer center Z */;
+  annotItems.push({
+    anchor: new THREE.Vector3(geometryRightEdge, 0, z),
+    label: layer.name,
+    labelZ: z,   // optional: forces label Z to match layer (use in exploded views)
+  });
+});
+
+placeAnnotations(scene, annotItems, geometryRightEdge + 70, [yMin, yMax]);
+```
+
+**Per-viewer labelX and yRange values:**
+| Viewer | labelX | yRange |
+|--------|--------|--------|
+| AssembledPanel3D | `pw/2 + 68` | `[-ph/3, ph/3]` |
+| ExplodedPanel3D | `pw/2 + 68` | `[-ph/3, ph/3]` |
+| CurvingAssembled3D | `W + 60` | `[-W*0.8, W*1.2]` |
+| CurvingExploded3D | `W + 65` | `[-W*0.8, W*1.2]` |
+| HermeticDoorAssembled3D | `HW/2 + 35` | `[-DH/2+10, DH/2+HH+10]` |
+| HermeticDoorExploded3D | `DW/2 + 70` | `[-DH/2-15, DH/2+15]` |
+
+### ⚠️ DO NOT use `spreadAnnotationLabels()` for new code
+`spreadAnnotationLabels` mutates `labelPos.y` but keeps `anchor` fixed → lines become random diagonals at ugly angles from any non-front camera. It was tried and failed 3+ times. It remains in the codebase for backward compat only — **don't use it**.
 
 ### Visual Thickness Scaling (do not change)
 ```typescript

@@ -1,5 +1,52 @@
 # Changelog
 
+## [2026-03-06] — Annotation System Overhaul: `placeAnnotations()`
+
+### Problem (Root Cause)
+The previous `spreadAnnotationLabels()` approach was fundamentally broken:
+- It mutated `labelPos.y` (pushing labels up/down) but left `anchor` at the original fixed position
+- Result: leader lines became random diagonal angles — ugly from every camera view
+- Heavy label CSS (border, box-shadow, semi-bold font) made labels feel clinical/rigid
+- Simple ±30 Y alternation was too small for dense label clusters; labels still overlapped
+
+### Solution
+Replaced the entire annotation system with `placeAnnotations()` in `three-scene.ts`:
+
+**New API:**
+```typescript
+placeAnnotations(
+  scene: THREE.Scene,
+  items: Array<{ anchor: THREE.Vector3; label: string; labelZ?: number }>,
+  labelX: number,
+  yRange: [number, number],
+): void
+```
+
+**What it does differently:**
+- Sorts items by `anchor.y` descending → top anchor gets top label (predictable)
+- Evenly distributes labels across explicit `yRange` → guaranteed no overlap
+- **Two-segment elbow line per annotation** — `anchor → knee (labelX-12, labelY) → label (labelX, labelY)` — structured, readable from any camera angle
+- Both line segments: `depthTest:false`, `depthWrite:false`, `renderOrder:998`
+- Annotation dots: `SphereGeometry(1.5)`, blue `0x3b82f6`, `renderOrder:999`
+- Lightweight labels: `rgba(255,255,255,0.78)` bg, no border, no shadow, `font:400 10px/1.55 Inter`
+
+### Kebodohan / Mistakes Made
+1. **Spread-only approach doesn't work** — moving label Y without moving anchor creates diagonal lines. You MUST move both ends of the line together, or use an elbow where the horizontal segment is always at the label Y. We tried `spreadAnnotationLabels` 3 times across multiple sessions before figuring this out.
+2. **`Object.assign` on position prop** — `Object.assign(new THREE.LineSegments(), { position: ... })` throws because `Object3D.position` is a read-only getter. Always use `.position.set()` or `.position.copy()`.
+3. **Summarization mid-edit** — Token budget was hit exactly while editing the last file (`HermeticDoorExploded3D.tsx`), leaving it with broken imports. Continuation required reading the summarized context carefully.
+
+### Changed
+- `three-scene.ts` — Full rewrite of annotation section. New exports: `placeAnnotations`. Kept `spreadAnnotationLabels` + `createAnnotationLine/Dot/Label` as backward-compat utilities.
+- All 6 viewer components migrated:
+  - `AssembledPanel3D.tsx` → `placeAnnotations(scene, items, pw/2+68, [-ph/3, ph/3])`
+  - `ExplodedPanel3D.tsx` → `placeAnnotations(scene, items, pw/2+68, [-ph/3, ph/3])`
+  - `CurvingAssembled3D.tsx` → `placeAnnotations(scene, items, W+60, [-W*0.8, W*1.2])`
+  - `CurvingExploded3D.tsx` → `placeAnnotations(scene, items, W+65, [-W*0.8, W*1.2])`
+  - `HermeticDoorAssembled3D.tsx` → `placeAnnotations(scene, items, HW/2+35, [-DH/2+10, DH/2+HH+10])`
+  - `HermeticDoorExploded3D.tsx` → `placeAnnotations(scene, items, DW/2+70, [-DH/2-15, DH/2+15])`
+
+---
+
 ## [2026-03-06] — Hermetic Door: D-Profile Housing Overhaul
 
 ### Fixed

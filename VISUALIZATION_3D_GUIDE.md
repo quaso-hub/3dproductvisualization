@@ -47,59 +47,103 @@ const totalThickness = visualThickness.reduce((sum, t) => sum + t, 0);
 
 ## Annotation System
 
-### Teks Besar & Jelas untuk Print
-```typescript
-function createTextTexture(text: string, width = 850, height = 200) {
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d')!;
-  canvas.width = width;
-  canvas.height = height;
-  
-  // Background putih dengan opacity tinggi
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.98)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  
-  // Border hitam
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
-  ctx.lineWidth = 4;
-  ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
-  
-  // Teks BESAR & BOLD untuk print
-  ctx.fillStyle = '#000000';
-  ctx.font = 'bold 60px Arial'; // Minimal 60px untuk print quality
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-  
-  return new THREE.CanvasTexture(canvas);
-}
-```
+> **[2026-03-06 — SYSTEM FULLY REPLACED]**
+> Seluruh sistem annotation lama (SpriteMaterial, CanvasTexture, spreadAnnotationLabels) sudah diganti.
+> Gunakan `placeAnnotations()` dari `lib/three-scene.ts`. Jangan pakai yang lama.
 
-### Mencegah Annotation Overlap (Assembled View)
-```typescript
-// Gunakan OFFSET VERTIKAL berbeda untuk setiap layer
-const annotationOffsets = [
-  { horizontal: 100, vertical: 40 },    // Layer 1 - atas
-  { horizontal: 110, vertical: 0 },     // Layer 2 - tengah (reference)
-  { horizontal: 105, vertical: -25 },   // Layer 3
-  { horizontal: 115, vertical: -50 },   // Layer 4
-  { horizontal: 95, vertical: -80 }     // Layer 5 - bawah
-];
+### API Baru: `placeAnnotations()`
 
-// Garis annotation menuju ketinggian berbeda
-const lineGeometry = new THREE.BufferGeometry().setFromPoints([
-  new THREE.Vector3(panelWidth / 2 + 2, 0, layerZ),
-  new THREE.Vector3(panelWidth / 2 + offset.horizontal, offset.vertical, layerZ)
-]);
-```
-
-### Annotation Selalu Visible
 ```typescript
-const spriteMaterial = new THREE.SpriteMaterial({ 
-  map: textTexture,
-  depthTest: false, // PENTING: agar tidak tertutup layer 3D
+import { placeAnnotations } from '../lib/three-scene';
+
+// Kumpulkan semua annotation dulu dalam satu array
+const annotItems: { anchor: THREE.Vector3; label: string; labelZ?: number }[] = [];
+
+layers.forEach((layer, i) => {
+  const z = layerCenterZ; // posisi Z pusat layer di scene
+  annotItems.push({
+    anchor: new THREE.Vector3(geometryRightEdge, 0, z),
+    label: layer.name,
+    labelZ: z,  // pakai ini di exploded view agar label sejajar layer
+  });
 });
+
+// Satu panggilan — semua selesai
+placeAnnotations(scene, annotItems, geometryRightEdge + 70, [yMin, yMax]);
 ```
+
+**Parameter:**
+- `labelX` — posisi X kolom label (sisi kanan geometry)
+- `yRange` — `[yMin, yMax]` rentang Y untuk sebaran label; gunakan batas visual geometry
+
+**Yang terjadi di balik layar:**
+1. Items diurutkan berdasarkan `anchor.y` descending — anchor paling atas → label paling atas
+2. Label didistribusikan merata di seluruh `yRange`
+3. Setiap annotation mendapat **elbow line dua segmen**: `anchor → knee (labelX-12, labelY) → label (labelX, labelY)`
+4. Kedua segmen: `depthTest:false`, `renderOrder:998` — tidak pernah tertutup geometry
+5. Dot biru `0x3b82f6` di setiap anchor
+6. Label ringan: `rgba(255,255,255,0.78)` bg, tanpa border, tanpa shadow
+
+### Nilai labelX dan yRange per Viewer
+
+| Viewer | labelX | yRange |
+|--------|--------|--------|
+| AssembledPanel3D | `pw/2 + 68` | `[-ph/3, ph/3]` |
+| ExplodedPanel3D | `pw/2 + 68` | `[-ph/3, ph/3]` |
+| CurvingAssembled3D | `W + 60` | `[-W*0.8, W*1.2]` |
+| CurvingExploded3D | `W + 65` | `[-W*0.8, W*1.2]` |
+| HermeticDoorAssembled3D | `HW/2 + 35` | `[-DH/2+10, DH/2+HH+10]` |
+| HermeticDoorExploded3D | `DW/2 + 70` | `[-DH/2-15, DH/2+15]` |
+
+### ⚠️ Jangan Gunakan Ini (Legacy / Broken)
+
+```typescript
+// ❌ JANGAN — spreadAnnotationLabels mutasi labelPos.y tapi anchor tetap
+// Hasilnya: garis diagonal aneh dari sudut kamera manapun
+spreadAnnotationLabels(annotItems, 22);
+
+// ❌ JANGAN — pendekatan manual lama
+scene.add(createAnnotationDot(anchor));
+createAnnotationLine(scene, anchor, labelPos);
+createLabel(scene, labelPos, label);
+
+// ❌ JANGAN — SpriteMaterial/CanvasTexture sudah ditinggalkan
+const spriteMaterial = new THREE.SpriteMaterial({ map: textTexture, depthTest: false });
+```
+
+### Pelajaran Menyakitkan (Jangan Ulangi)
+
+**Masalah `spreadAnnotationLabels` yang sudah dicoba 3x dan gagal:**
+- Fungsi hanya memindahkan `labelPos.y` tapi `anchor` tetap di posisi asli
+- Akibatnya: garis leader menjadi diagonal liar dari kamera manapun selain front view
+- Sudah dicoba ±30 alternation → masih overlap di layer padat
+- Sudah dicoba spread dengan jarak lebih besar → garis semakin aneh
+- **Solusi benar**: pindahkan KEDUA ujung garis — gunakan elbow dimana segmen horizontal selalu di Y label
+
+**Masalah label CSS terlalu berat:**
+- Border + box-shadow + font-weight:600 → terlihat kaku/klinis ("AI UI")
+- Solusi: `rgba(255,255,255,0.78)` tanpa border, tanpa shadow, font-weight:400
+
+**Masalah `depthTest: true` (default):**
+- Annotation tertutup geometry jika kamera tidak tepat di depan
+- **Selalu**: `depthTest:false`, `depthWrite:false` pada semua material annotation
+
+### CSS2D Labels (Detail Teknis)
+
+Label menggunakan `CSS2DRenderer` yang sudah setup di `createScene()`.
+CSS label saat ini (`createLabel()`):
+```css
+background: rgba(255,255,255,0.78);
+font: 400 10px/1.55 Inter, system-ui, Arial, sans-serif;
+color: #1e293b;
+padding: 2px 6px;
+border-radius: 3px;
+white-space: nowrap;
+pointer-events: none;
+```
+Jangan tambahkan border/shadow — akan terlihat kotak dan kaku.
+
+
 
 ## Exploded View Configuration
 
@@ -344,11 +388,12 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 ## Checklist Kualitas Final
 
 - [ ] Transparent background (renderer alpha: true)
-- [ ] Layer tipis sudah di-scale agar visible
-- [ ] Annotation teks minimal 60px bold
-- [ ] Annotation tidak overlap (offset vertikal berbeda)
-- [ ] depthTest: false pada annotation sprites
-- [ ] preserveDrawingBuffer: true untuk download
+- [ ] Layer tipis sudah di-scale agar visible (`visualThickness()`)
+- [ ] Annotation menggunakan `placeAnnotations()` — BUKAN `spreadAnnotationLabels`
+- [ ] `labelX` dan `yRange` sesuai tabel di copilot-instructions.md
+- [ ] Label CSS ringan: tanpa border, tanpa shadow
+- [ ] `depthTest:false` pada semua material annotation (otomatis dari `placeAnnotations`)
+- [ ] `preserveDrawingBuffer: true` untuk download
 - [ ] Minimal 6 camera presets profesional
 - [ ] Download current view & all angles working
 - [ ] Manual controls smooth (damping enabled)
@@ -356,33 +401,45 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 - [ ] Lighting setup 4-point (ambient, main, fill, rim)
 - [ ] Shadow resolution tinggi (4096x4096)
 - [ ] Material properties sesuai spesifikasi
-- [ ] Edge lines subtle (opacity 0.15)
-- [ ] Exploded gap cukup lebar (80+ units)
-- [ ] Responsive canvas sizing
-- [ ] Proper cleanup pada unmount
+- [ ] Edge lines subtle (opacity 0.12-0.15)
+- [ ] Exploded gap cukup lebar (EXPLOSION_GAP ≥ 30 units)
+- [ ] ResizeObserver init pattern (bukan setTimeout)
+- [ ] Proper cleanup pada unmount (`disposeScene`)
 
 ## Common Pitfalls & Solutions
 
 ### ❌ Problem: Layer tipis tidak terlihat
-✅ **Solution**: Scale visual thickness (< 1mm = 20x, < 5mm = 8x)
+✅ **Solution**: Scale visual thickness (< 1mm = 20x, < 5mm = 8x) via `visualThickness(layer)` dari `lib/three-scene.ts`
 
-### ❌ Problem: Annotation bertumpuk/overlap
-✅ **Solution**: Gunakan offset vertikal berbeda untuk assembled view
+### ❌ Problem: Annotation garis diagonal liar dari sudut kamera
+✅ **Solution**: Gunakan `placeAnnotations()` dengan elbow dua segmen. JANGAN pakai `spreadAnnotationLabels` — ia hanya memindahkan label Y, anchor tetap, hasilnya diagonal aneh.
+
+### ❌ Problem: Annotation label overlap / bertumpuk
+✅ **Solution**: `placeAnnotations()` dengan `yRange` yang mencakup seluruh rentang visual geometry. Labels didistribusikan merata otomatis.
 
 ### ❌ Problem: Annotation tertutup layer 3D
-✅ **Solution**: Set `depthTest: false` di SpriteMaterial
+✅ **Solution**: `depthTest:false`, `depthWrite:false`, `renderOrder:998/999` pada SEMUA material annotation — sudah dihandle `placeAnnotations()` secara otomatis.
+
+### ❌ Problem: Label terlihat kotak/kaku/klinis
+✅ **Solution**: Hapus border dan box-shadow. Gunakan `rgba(255,255,255,0.78)` bg, font-weight:400, bukan bold. `createLabel()` di `three-scene.ts` sudah benar.
 
 ### ❌ Problem: Download gambar tidak berfungsi
-✅ **Solution**: Set `preserveDrawingBuffer: true` di renderer options
+✅ **Solution**: Set `preserveDrawingBuffer: true` di renderer options (sudah ada di `createScene()`)
 
-### ❌ Problem: Teks annotation terlalu kecil untuk print
-✅ **Solution**: Font minimum 60px bold, canvas 850x200px
+### ❌ Problem: Canvas height 0 / scene tidak muncul
+✅ **Solution**: Jangan init Three.js di `useEffect` dengan timeout. Gunakan `ResizeObserver` pattern — init hanya dipanggil saat `container.clientWidth > 0 && container.clientHeight > 0`.
 
-### ❌ Problem: Canvas overflow/scrolling
-✅ **Solution**: Use timeout untuk ensure container dimensions ready
+### ❌ Problem: `Object.assign` error pada Three.js Object3D
+✅ **Solution**: `Object3D.position` adalah read-only getter/setter. Jangan `Object.assign(mesh, { position: new Vector3(...) })`. Gunakan `mesh.position.set(x,y,z)` atau `mesh.position.copy(v)`.
 
-### ❌ Problem: Material terlihat flat/tidak realistis
-✅ **Solution**: 4-point lighting + proper metalness/roughness values
+### ❌ Problem: Material terlihat flat / tidak realistis
+✅ **Solution**: 4-point lighting + proper metalness/roughness + `RoomEnvironment` untuk custom viewers + `ACESFilmicToneMapping`.
+
+### ❌ Problem: Housing hermetic door masuk ke dalam dinding
+✅ **Solution**: Axis math `ExtrudeGeometry` yang benar — lihat bagian Hermetic Door di `copilot-instructions.md`. `position.z = DT/2 - 4` protrudes forward, bukan `position.z = -HDT/2`.
+
+### ❌ Problem: Token budget habis di tengah edit multi-file
+✅ **Solution**: Baca conversation summary dengan cermat. Tandai file yang sudah selesai vs belum. Selalu commit setelah tiap milestone, bukan setelah semua selesai.
 
 ---
 
