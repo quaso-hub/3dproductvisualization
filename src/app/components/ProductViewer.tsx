@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { ChevronDown } from 'lucide-react';
 import type { Product, ViewType } from '../data/products';
 import { AssembledPanel3D } from './AssembledPanel3D';
 import { ExplodedPanel3D }  from './ExplodedPanel3D';
@@ -27,6 +28,7 @@ const VIEW_DESC: Record<ViewType, string> = {
 
 export function ProductViewer({ product }: Props) {
   const [activeView, setActiveView] = useState<ViewType>(product.views[0]);
+  const [specsOpen, setSpecsOpen] = useState(false);
 
   /* When product changes, reset to first available view */
   useEffect(() => {
@@ -37,39 +39,53 @@ export function ProductViewer({ product }: Props) {
     <div className="flex flex-col h-full overflow-hidden">
 
       {/* Product header */}
-      <div className="flex-shrink-0 bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-2 mb-2 flex gap-6">
-        {/* Left: name + description + layer list */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-0.5 flex-wrap">
-            <h2 className="text-base font-bold text-gray-800 leading-tight">{product.fullName}</h2>
-            {product.badge && (
-              <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${product.badgeColor ?? 'bg-gray-100 text-gray-600'}`}>
-                {product.badge}
-              </span>
-            )}
+      <div className="flex-shrink-0 bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-1 mb-1">
+        {/* Name + badge + description */}
+        <div className="flex items-start justify-between gap-3 mb-0">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0 flex-wrap">
+              <h2 className="text-base font-bold text-gray-800 leading-tight">{product.fullName}</h2>
+              {product.badge && (
+                <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${product.badgeColor ?? 'bg-gray-100 text-gray-600'}`}>
+                  {product.badge}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mb-1">{product.description}</p>
           </div>
-          <p className="text-xs text-gray-500 mb-1">{product.description}</p>
 
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
-            Komposisi Layer ({product.layers.length} lapisan)
-          </p>
-          <div className="flex flex-wrap gap-x-4 gap-y-0.5">
-            {product.layers.map((layer, i) => (
-              <div key={i} className="flex items-center gap-1.5 text-xs text-gray-700">
-                <span
-                  className="w-3 h-3 rounded-sm flex-shrink-0 border border-black/10"
-                  style={{ backgroundColor: `#${layer.color.toString(16).padStart(6, '0')}` }}
-                />
-                <span className="font-medium">{layer.name}</span>
-                <span className="text-gray-400">{layer.thickness} mm</span>
-              </div>
-            ))}
-          </div>
+          {/* Specs toggle button */}
+          {product.specs.length > 0 && (
+            <button
+              onClick={() => setSpecsOpen(!specsOpen)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-md transition flex-shrink-0"
+            >
+              <span>Spesifikasi</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${specsOpen ? 'rotate-180' : ''}`} />
+            </button>
+          )}
         </div>
 
-        {/* Right: spec table */}
-        {product.specs.length > 0 && (
-          <div className="w-60 flex-shrink-0">
+        {/* Layers display */}
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+          Komposisi Layer ({product.layers.length} lapisan)
+        </p>
+        <div className="flex flex-wrap gap-x-4 gap-y-0">
+          {product.layers.map((layer, i) => (
+            <div key={i} className="flex items-center gap-1.5 text-xs text-gray-700">
+              <span
+                className="w-3 h-3 rounded-sm flex-shrink-0 border border-black/10"
+                style={{ backgroundColor: `#${layer.color.toString(16).padStart(6, '0')}` }}
+              />
+              <span className="font-medium">{layer.name}</span>
+              <span className="text-gray-400">{layer.thickness} mm</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Specs table (expanded) */}
+        {specsOpen && product.specs.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-gray-200">
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
               Spesifikasi Teknis
             </p>
@@ -89,7 +105,7 @@ export function ProductViewer({ product }: Props) {
 
       {/* View tabs */}
       {product.views.length > 1 && (
-        <div className="flex-shrink-0 flex gap-2 mb-2">
+        <div className="flex-shrink-0 flex gap-2 mb-1">
           {product.views.map((v) => (
             <button
               key={v}
