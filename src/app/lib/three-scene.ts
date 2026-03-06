@@ -232,9 +232,9 @@ export function buildLayerMesh(
 // ─── Annotation helpers (CSS2DRenderer-based) ────────────────
 
 /**
- * Creates a CSS2DObject label that always faces the camera and
- * projects correctly regardless of camera angle.
- * Position is in world-space — attach to a scene or object.
+ * CSS2DObject label — minimal, airy, always faces camera.
+ * Deliberately lightweight: no border, no shadow, just clean text
+ * on a barely-there fill so it reads against any background.
  */
 export function createLabel(
   scene: THREE.Scene,
@@ -243,11 +243,11 @@ export function createLabel(
 ): CSS2DObject {
   const wrap = document.createElement('div');
   wrap.style.cssText = [
-    'background:rgba(255,255,255,0.82)',
+    'background:rgba(255,255,255,0.78)',
     'border-radius:3px',
-    'padding:1px 6px',
-    'font:400 10px/1.5 Inter,Arial,sans-serif',
-    'color:#374151',
+    'padding:1px 7px',
+    'font:400 10px/1.55 Inter,system-ui,Arial,sans-serif',
+    'color:#1e293b',
     'white-space:nowrap',
     'pointer-events:none',
     'user-select:none',
@@ -259,30 +259,130 @@ export function createLabel(
   return obj;
 }
 
-/** Thin 3D leader line from anchor dot to label position. */
+/**
+ * Single-segment leader line — always rendered on top of all geometry.
+ * depthTest:false + renderOrder:998 prevents clipping through meshes.
+ */
 export function createAnnotationLine(
   scene: THREE.Scene,
   from: THREE.Vector3,
   to: THREE.Vector3,
 ): void {
   const mat = new THREE.LineBasicMaterial({
-    color: 0x9ca3af,
-    opacity: 0.55,
+    color: 0x94a3b8,
+    opacity: 0.7,
     transparent: true,
+    depthTest: false,
+    depthWrite: false,
   });
   const geo = new THREE.BufferGeometry().setFromPoints([from, to]);
-  scene.add(new THREE.Line(geo, mat));
+  const line = new THREE.Line(geo, mat);
+  line.renderOrder = 998;
+  scene.add(line);
 }
 
-/** Small filled circle dot at annotation anchor point. */
+/** Small filled dot at the annotation anchor — always on top. */
 export function createAnnotationDot(pos: THREE.Vector3): THREE.Mesh {
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(1.8, 12, 12),
-    new THREE.MeshBasicMaterial({ color: 0x1a3a6e, depthTest: false }),
+    new THREE.SphereGeometry(1.5, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0x3b82f6, depthTest: false, depthWrite: false }),
   );
   mesh.position.copy(pos);
   mesh.renderOrder = 999;
   return mesh;
+}
+
+/**
+ * Full annotation set: scatter anchors + labels at a clean label column.
+ *
+ * For each item:
+ *   anchor  = exact 3D point on the geometry (dot goes here)
+ *   labelX  = world X of the label column (all labels share this X)
+ *   labelZ  = world Z of the label (usually same as anchor.z or explicit)
+ *
+ * Labels are evenly distributed in Y over the geometry's height range,
+ * sorted by anchor.y so the tallest anchor → top label.
+ * A two-segment elbow line (anchor → knee → label) keeps lines clean
+ * from any camera angle — the vertical segment is always visible.
+ *
+ * @param items    Array of { anchor, label, labelZ? }
+ * @param labelX   World X of the label column
+ * @param yRange   [yMin, yMax] — spread labels across this Y span
+ * @param scene    THREE.Scene to add objects to
+ */
+export function placeAnnotations(
+  scene: THREE.Scene,
+  items: Array<{ anchor: THREE.Vector3; label: string; labelZ?: number }>,
+  labelX: number,
+  yRange: [number, number],
+): void {
+  if (items.length === 0) return;
+
+  // Sort by anchor Y — top anchors get top labels
+  const sorted = [...items].sort((a, b) => b.anchor.y - a.anchor.y);
+  const n = sorted.length;
+  const [yMin, yMax] = yRange;
+  const span = yMax - yMin;
+
+  sorted.forEach(({ anchor, label, labelZ }, i) => {
+    // Evenly distribute labels: top item → yMax, bottom → yMin
+    const labelY = n === 1
+      ? (yMin + yMax) / 2
+      : yMax - (i / (n - 1)) * span;
+
+    const lz = labelZ ?? anchor.z;
+    const labelPos = new THREE.Vector3(labelX, labelY, lz);
+
+    // Elbow knee: same X as anchor, same Y as label
+    const knee = new THREE.Vector3(labelX - 12, labelY, lz);
+
+    const lineMat = new THREE.LineBasicMaterial({
+      color: 0x94a3b8,
+      opacity: 0.65,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+    });
+
+    // Segment 1: anchor dot → knee (diagonal)
+    const seg1 = new THREE.BufferGeometry().setFromPoints([anchor, knee]);
+    const l1 = new THREE.Line(seg1, lineMat);
+    l1.renderOrder = 998;
+    scene.add(l1);
+
+    // Segment 2: knee → label position (horizontal, clean)
+    const seg2 = new THREE.BufferGeometry().setFromPoints([knee, labelPos]);
+    const l2 = new THREE.Line(seg2, lineMat);
+    l2.renderOrder = 998;
+    scene.add(l2);
+
+    // Dot at anchor
+    scene.add(createAnnotationDot(anchor));
+
+    // Label at column position
+    createLabel(scene, labelPos, label);
+  });
+}
+
+/**
+ * Spread annotation label Y positions so no two labels are closer
+ * than `minSpacing` units. Mutates labelPos.y in-place.
+ * Used for simple (non-elbow) annotation layouts.
+ */
+export function spreadAnnotationLabels(
+  items: Array<{ anchor: THREE.Vector3; labelPos: THREE.Vector3 }>,
+  minSpacing = 18,
+): void {
+  if (items.length < 2) return;
+  items.sort((a, b) => a.labelPos.y - b.labelPos.y);
+  for (let i = 1; i < items.length; i++) {
+    if (items[i].labelPos.y - items[i - 1].labelPos.y < minSpacing)
+      items[i].labelPos.y = items[i - 1].labelPos.y + minSpacing;
+  }
+  for (let i = items.length - 2; i >= 0; i--) {
+    if (items[i + 1].labelPos.y - items[i].labelPos.y < minSpacing)
+      items[i].labelPos.y = items[i + 1].labelPos.y - minSpacing;
+  }
 }
 
 // ─── Download helpers ────────────────────────────────────────

@@ -23,7 +23,7 @@ import { useState } from 'react';
 import * as THREE from 'three';
 import type { Product, CameraPreset } from '../data/products';
 import {
-  applyCameraPreset, downloadPNG, createLabel, createAnnotationDot, createAnnotationLine,
+  applyCameraPreset, downloadPNG, placeAnnotations,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
@@ -225,20 +225,18 @@ function buildExplodedScene(scene: THREE.Scene, L: number) {
   });
 
   // ── Annotations (CSS2D) ───────────────────────────────────
-  const annotData = [
-    { anchor: new THREE.Vector3(-W - 0.6, W * 0.6, zPos[0]),                   label: 'Anodized Coating' },
-    { anchor: new THREE.Vector3(-W / 2, W * 0.5, zPos[1]),                     label: 'Aluminium Angle 40×40' },
-    { anchor: new THREE.Vector3(-W - 1.25, T + (W - T * 2) * 0.5, zPos[2]),   label: 'White Silicone' },
-    { anchor: new THREE.Vector3(W * 0.35, -(T / 2 + 1.5), zPos[3]),           label: 'Pop Rivets' },
-    { anchor: new THREE.Vector3(W + 1, -2, zPos[4]),                           label: 'Panel Dinding / Lantai' },
-  ];
-
-  annotData.forEach(({ anchor, label }) => {
-    const labelPos = anchor.clone().add(new THREE.Vector3(55, 0, 0));
-    scene.add(createAnnotationDot(anchor));
-    createAnnotationLine(scene, anchor, labelPos);
-    createLabel(scene, labelPos, label);
-  });
+  placeAnnotations(
+    scene,
+    [
+      { anchor: new THREE.Vector3(-W - 0.6, W * 0.6, zPos[0]),                   label: 'Anodized Coating',        labelZ: zPos[0] },
+      { anchor: new THREE.Vector3(-W / 2, W * 0.5, zPos[1]),                     label: 'Aluminium Angle 40×40',   labelZ: zPos[1] },
+      { anchor: new THREE.Vector3(-W - 1.25, T + (W - T * 2) * 0.5, zPos[2]),   label: 'White Silicone',           labelZ: zPos[2] },
+      { anchor: new THREE.Vector3(W * 0.35, -(T / 2 + 1.5), zPos[3]),           label: 'Pop Rivets',               labelZ: zPos[3] },
+      { anchor: new THREE.Vector3(W + 1, -2, zPos[4]),                           label: 'Panel Dinding / Lantai',  labelZ: zPos[4] },
+    ],
+    W + 65,
+    [-W * 0.8, W * 1.2],
+  );
 }
 
 // ─── React component ─────────────────────────────────────────

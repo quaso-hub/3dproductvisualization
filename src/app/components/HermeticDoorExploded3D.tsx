@@ -22,7 +22,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Product, CameraPreset } from '../data/products';
 import {
-  applyCameraPreset, downloadPNG, createLabel, createAnnotationDot, createAnnotationLine, visualThickness,
+  applyCameraPreset, downloadPNG, placeAnnotations, visualThickness,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
@@ -120,6 +120,9 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
   // Center the stack at Z=0
   let currentZ = -totalSpan / 2;
 
+  // ── Collect annotation items as we build panel layers ────
+  const annotItems: { anchor: THREE.Vector3; label: string; labelZ: number }[] = [];
+
   // ── Panel layers (0-4) ────────────────────────────────────
   layers.slice(0, 5).forEach((layer, i) => {
     const vt = visualTs[i];
@@ -156,14 +159,9 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
       createDashedCornerLines(scene, layer, currentZ + vt / 2, currentZ + vt + EXPLOSION_GAP - vt / 2);
     }
 
-    // Annotation — CSS2D label outside right edge with leader line, staggered Y
+    // Collect annotation
     const layerCenterZ = currentZ + vt / 2;
-    const yOff   = (i % 2 === 0) ? 30 : -30;
-    const anchor   = new THREE.Vector3(DW / 2, 0, layerCenterZ);
-    const labelPos = new THREE.Vector3(DW / 2 + 65, yOff, layerCenterZ);
-    scene.add(createAnnotationDot(anchor));
-    createAnnotationLine(scene, anchor, labelPos);
-    createLabel(scene, labelPos, layer.name);
+    annotItems.push({ anchor: new THREE.Vector3(DW / 2, 0, layerCenterZ), label: layer.name, labelZ: layerCenterZ });
 
     currentZ += vt + EXPLOSION_GAP;
   });
@@ -194,12 +192,12 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
     new THREE.LineBasicMaterial({ color: 0x0284c7, opacity: 0.4, transparent: true }),
   )).position.copy(glassMesh.position);
 
-  // Glass annotation — CSS2D label outside right edge with leader line
-  const glassAnchor   = new THREE.Vector3(WX + WW / 2, WY - DH / 2 + WH / 2, glassZ);
-  const glassLabelPos = new THREE.Vector3(DW / 2 + 65, WY - DH / 2 + WH / 2 + 30, glassZ);
-  scene.add(createAnnotationDot(glassAnchor));
-  createAnnotationLine(scene, glassAnchor, glassLabelPos);
-  createLabel(scene, glassLabelPos, glassLayer.name);
+  // Glass annotation — add to shared list
+  const glassAnchor = new THREE.Vector3(WX + WW / 2, WY - DH / 2 + WH / 2, glassZ);
+  annotItems.push({ anchor: glassAnchor, label: glassLayer.name, labelZ: glassZ });
+
+  // Render all annotations with even Y distribution
+  placeAnnotations(scene, annotItems, DW / 2 + 70, [-DH / 2 - 15, DH / 2 + 15]);
 
   // ── Dimension indicator: total thickness arrow + tick marks ──
   const arrowMat = new THREE.LineBasicMaterial({ color: 0x374151, opacity: 0.6, transparent: true, linewidth: 2 });
@@ -225,8 +223,7 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
   });
 
   const thickDot = new THREE.Vector3(-DW / 2 - 25, arrowY, 0);
-  scene.add(createAnnotationDot(thickDot));
-  createLabel(scene, thickDot.clone().add(new THREE.Vector3(-8, 0, 0)), 'Tebal Total ~94mm');
+  placeAnnotations(scene, [{ anchor: thickDot, label: 'Tebal Total ~94mm', labelZ: 0 }], -DW / 2 - 40, [arrowY, arrowY]);
 }
 
 // ─── React component ─────────────────────────────────────────

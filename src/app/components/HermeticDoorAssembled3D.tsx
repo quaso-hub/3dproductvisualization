@@ -15,7 +15,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Product, CameraPreset } from '../data/products';
 import {
-  applyCameraPreset, downloadPNG, createLabel, createAnnotationDot, createAnnotationLine,
+  applyCameraPreset, downloadPNG, placeAnnotations,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
@@ -391,23 +391,20 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   const zA  = 0;
   const hYR = housingY;
 
-  const annotList = [
-    { pos: new THREE.Vector3(0, hYR + HH / 2, zA),                         label: 'Electric Motor Housing' },
-    { pos: new THREE.Vector3(0, trackY, zA),                                label: 'Sliding Track Rail' },
-    { pos: new THREE.Vector3(-HW / 2 + 14, sensorY, zA),                   label: 'Sensor Indicator' },
-    { pos: new THREE.Vector3(DOOR_OFFSET + WX + WW / 2, WY + WH / 2 - DH / 2, zA), label: 'Lead Glass Pb 5mm' },
-    { pos: new THREE.Vector3(DOOR_OFFSET - DW / 2, 0, zA),                 label: 'Stainless Steel' },
-    { pos: new THREE.Vector3(DOOR_OFFSET, DH / 2 - 1.25, zA),              label: 'Lapis Pb 2mm' },
-    { pos: new THREE.Vector3(DW / 2 - 12, 0, zA),                          label: 'Handle SS' },
-  ];
-
-  const LABEL_X = HW / 2 + 30;  // 150 — clear of housing right edge
-  annotList.forEach(({ pos, label }) => {
-    const labelPos = new THREE.Vector3(LABEL_X, pos.y, pos.z);
-    scene.add(createAnnotationDot(pos));
-    createAnnotationLine(scene, pos, labelPos);
-    createLabel(scene, labelPos, label);
-  });
+  placeAnnotations(
+    scene,
+    [
+      { anchor: new THREE.Vector3(0, hYR + HH / 2, zA),                         label: 'Electric Motor Housing' },
+      { anchor: new THREE.Vector3(0, trackY, zA),                                label: 'Sliding Track Rail' },
+      { anchor: new THREE.Vector3(-HW / 2 + 14, sensorY, zA),                   label: 'Sensor Indicator' },
+      { anchor: new THREE.Vector3(DOOR_OFFSET + WX + WW / 2, WY + WH / 2 - DH / 2, zA), label: 'Lead Glass Pb 5mm' },
+      { anchor: new THREE.Vector3(DOOR_OFFSET - DW / 2, 0, zA),                 label: 'Stainless Steel' },
+      { anchor: new THREE.Vector3(DOOR_OFFSET, DH / 2 - 1.25, zA),              label: 'Lapis Pb 2mm' },
+      { anchor: new THREE.Vector3(DW / 2 - 12, 0, zA),                          label: 'Handle SS' },
+    ],
+    HW / 2 + 35,
+    [-DH / 2 + 10, DH / 2 + HH + 10],
+  );
 }
 
 // ─── React component ─────────────────────────────────────────

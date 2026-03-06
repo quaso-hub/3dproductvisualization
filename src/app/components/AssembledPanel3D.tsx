@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import type { Product, CameraPreset } from '../data/products';
 import {
   applyCameraPreset, visualThickness, buildLayerMesh,
-  createLabel, createAnnotationDot, createAnnotationLine, downloadPNG,
+  placeAnnotations, downloadPNG,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
@@ -42,19 +42,23 @@ export function AssembledPanel3D({ product }: Props) {
       });
       refs.scene.add(panelGroup);
 
-      /* Annotations — CSS2D labels, positioned at right edge of each layer */
-      let az = -total / 2;
-      layers.forEach((layer, i) => {
-        const t    = vt[i];
-        const z    = az + t / 2;
-        const yOff     = (i % 2 === 0) ? 30 : -30;
-        const anchor   = new THREE.Vector3(pw / 2 + 2, 0, z);
-        const labelPos = new THREE.Vector3(pw / 2 + 65, yOff, z);
-        refs.scene.add(createAnnotationDot(anchor));
-        createAnnotationLine(refs.scene, anchor, labelPos);
-        createLabel(refs.scene, labelPos, layer.name);
-        az += t;
-      });
+      /* Annotations — elbow-leader column, evenly spread over panel height */
+      {
+        let az2 = -total / 2;
+        const annotItems = layers.map((layer, i) => {
+          const t = vt[i];
+          const z = az2 + t / 2;
+          az2 += t;
+          return { anchor: new THREE.Vector3(pw / 2 + 2, 0, z), label: layer.name };
+        });
+
+        placeAnnotations(
+          refs.scene,
+          annotItems,
+          pw / 2 + 68,
+          [-ph / 3, ph / 3],
+        );
+      }
     },
     deps: [product],
   });

@@ -24,7 +24,7 @@ import { useState } from 'react';
 import * as THREE from 'three';
 import type { Product, CameraPreset } from '../data/products';
 import {
-  applyCameraPreset, downloadPNG, createLabel, createAnnotationDot, createAnnotationLine,
+  applyCameraPreset, downloadPNG, placeAnnotations,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { ViewerControls } from './ViewerControls';
@@ -179,20 +179,18 @@ function buildAssembledScene(scene: THREE.Scene, L: number) {
   // ── 4. Annotations (CSS2D) ───────────────────────────────
   const zA = L * 0.28;
 
-  const anchors = [
-    { pos: new THREE.Vector3(-W / 2, W * 0.6, zA),           label: 'Aluminium Angle 40×40' },
-    { pos: new THREE.Vector3(-W - 0.5, W * 0.4, zA),         label: 'Anodized Coating' },
-    { pos: new THREE.Vector3(-W / 2 + T / 2, -0.75, zA),     label: 'White Silicone' },
-    { pos: new THREE.Vector3(W * 0.35, -(T / 2 + 1), zA),    label: 'Pop Rivets' },
-    { pos: new THREE.Vector3(-W - 0.75, T + R + (W - T - R) * 0.5, zA), label: 'Sealant Vertikal' },
-  ];
-
-  anchors.forEach(({ pos, label }) => {
-    const labelPos = pos.clone().add(new THREE.Vector3(55, 0, 0));
-    scene.add(createAnnotationDot(pos));
-    createAnnotationLine(scene, pos, labelPos);
-    createLabel(scene, labelPos, label);
-  });
+  placeAnnotations(
+    scene,
+    [
+      { anchor: new THREE.Vector3(-W / 2, W * 0.6, zA),           label: 'Aluminium Angle 40×40' },
+      { anchor: new THREE.Vector3(-W - 0.5, W * 0.4, zA),         label: 'Anodized Coating' },
+      { anchor: new THREE.Vector3(-W / 2 + T / 2, -0.75, zA),     label: 'White Silicone' },
+      { anchor: new THREE.Vector3(W * 0.35, -(T / 2 + 1), zA),    label: 'Pop Rivets' },
+      { anchor: new THREE.Vector3(-W - 0.75, T + R + (W - T - R) * 0.5, zA), label: 'Sealant Vertikal' },
+    ],
+    W + 60,
+    [-W * 0.8, W * 1.2],
+  );
 }
 
 // ─── React component ─────────────────────────────────────────
