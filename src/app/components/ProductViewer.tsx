@@ -13,6 +13,18 @@ import { CurvingAssembled3D } from './CurvingAssembled3D';
 import { CurvingExploded3D }  from './CurvingExploded3D';
 import { HermeticDoorAssembled3D } from './HermeticDoorAssembled3D';
 import { HermeticDoorExploded3D }  from './HermeticDoorExploded3D';
+import { PbLeadDoorAssembled3D }   from './PbLeadDoorAssembled3D';
+import { PbLeadDoorExploded3D }    from './PbLeadDoorExploded3D';
+import { ScrubSinkAssembled3D }    from './ScrubSinkAssembled3D';
+import { ScrubSinkExploded3D }     from './ScrubSinkExploded3D';
+import { PassBoxAssembled3D }      from './PassBoxAssembled3D';
+import { PassBoxExploded3D }       from './PassBoxExploded3D';
+import { PacsCabinetAssembled3D }  from './PacsCabinetAssembled3D';
+import { PacsCabinetExploded3D }   from './PacsCabinetExploded3D';
+import { ReturnAirGrilleAssembled3D } from './ReturnAirGrilleAssembled3D';
+import { ReturnAirGrilleExploded3D }  from './ReturnAirGrilleExploded3D';
+import { LafSystemAssembled3D }       from './LafSystemAssembled3D';
+import { LafSystemExploded3D }        from './LafSystemExploded3D';
 
 interface Props { product: Product }
 
@@ -141,6 +153,60 @@ export function ProductViewer({ product }: Props) {
             )}
             {activeView === 'exploded' && (
               <HermeticDoorExploded3D key={`hermetic-exploded-${product.id}`} product={product} />
+            )}
+          </>
+        ) : product.viewerType === 'pb-lead-door' ? (
+          <>
+            {activeView === 'assembled' && (
+              <PbLeadDoorAssembled3D key={`pb-assembled-${product.id}`} product={product} />
+            )}
+            {activeView === 'exploded' && (
+              <PbLeadDoorExploded3D key={`pb-exploded-${product.id}`} product={product} />
+            )}
+          </>
+        ) : product.viewerType === 'scrub-sink' ? (
+          <>
+            {activeView === 'assembled' && (
+              <ScrubSinkAssembled3D key={`scrub-assembled-${product.id}`} product={product} />
+            )}
+            {activeView === 'exploded' && (
+              <ScrubSinkExploded3D key={`scrub-exploded-${product.id}`} product={product} />
+            )}
+          </>
+        ) : product.viewerType === 'pass-box' ? (
+          <>
+            {activeView === 'assembled' && (
+              <PassBoxAssembled3D key={`passbox-assembled-${product.id}`} product={product} />
+            )}
+            {activeView === 'exploded' && (
+              <PassBoxExploded3D key={`passbox-exploded-${product.id}`} product={product} />
+            )}
+          </>
+        ) : product.viewerType === 'pacs-cabinet' ? (
+          <>
+            {activeView === 'assembled' && (
+              <PacsCabinetAssembled3D key={`pacs-assembled-${product.id}`} product={product} />
+            )}
+            {activeView === 'exploded' && (
+              <PacsCabinetExploded3D key={`pacs-exploded-${product.id}`} product={product} />
+            )}
+          </>
+        ) : product.viewerType === 'return-air-grille' ? (
+          <>
+            {activeView === 'assembled' && (
+              <ReturnAirGrilleAssembled3D key={`rag-assembled-${product.id}`} product={product} />
+            )}
+            {activeView === 'exploded' && (
+              <ReturnAirGrilleExploded3D key={`rag-exploded-${product.id}`} product={product} />
+            )}
+          </>
+        ) : product.viewerType === 'laf-system' ? (
+          <>
+            {activeView === 'assembled' && (
+              <LafSystemAssembled3D key={`laf-assembled-${product.id}`} product={product} />
+            )}
+            {activeView === 'exploded' && (
+              <LafSystemExploded3D key={`laf-exploded-${product.id}`} product={product} />
             )}
           </>
         ) : (

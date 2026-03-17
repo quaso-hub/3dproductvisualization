@@ -52,7 +52,7 @@ export function createScene(opts: SceneOptions): SceneRefs {
   camera.lookAt(0, 0, 0);
 
   /* ── Renderer (print-quality) ── */
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(w, h);
   renderer.shadowMap.enabled = true;
@@ -232,9 +232,9 @@ export function buildLayerMesh(
 // ─── Annotation helpers (CSS2DRenderer-based) ────────────────
 
 /**
- * CSS2DObject label — minimal, airy, always faces camera.
- * Deliberately lightweight: no border, no shadow, just clean text
- * on a barely-there fill so it reads against any background.
+ * CSS2DObject label — clean, compact, always faces camera.
+ * Uses individual font-* properties (NOT shorthand) to prevent
+ * italic/bold inheritance from parent elements.
  */
 export function createLabel(
   scene: THREE.Scene,
@@ -243,11 +243,19 @@ export function createLabel(
 ): CSS2DObject {
   const wrap = document.createElement('div');
   wrap.style.cssText = [
-    'background:rgba(255,255,255,0.78)',
-    'border-radius:3px',
-    'padding:1px 7px',
-    'font:400 10px/1.55 Inter,system-ui,Arial,sans-serif',
-    'color:#1e293b',
+    'background:rgba(255,255,255,0.84)',
+    'backdrop-filter:blur(6px)',
+    '-webkit-backdrop-filter:blur(6px)',
+    'border:1px solid rgba(0,0,0,0.06)',
+    'border-radius:4px',
+    'padding:2px 8px',
+    'font-family:Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif',
+    'font-size:10px',
+    'font-weight:400',
+    'font-style:normal',
+    'line-height:1.4',
+    'letter-spacing:0.01em',
+    'color:#334155',
     'white-space:nowrap',
     'pointer-events:none',
     'user-select:none',
@@ -324,11 +332,28 @@ export function placeAnnotations(
   const [yMin, yMax] = yRange;
   const span = yMax - yMin;
 
+  // Compute initial evenly-distributed Y positions
+  const labelYs: number[] = sorted.map((_, i) =>
+    n === 1 ? (yMin + yMax) / 2 : yMax - (i / (n - 1)) * span,
+  );
+
+  // Enforce minimum gap between adjacent labels (prevents crowding)
+  const MIN_GAP = Math.max(8, span / (n + 2));
+  // Bottom-up pass: push overlapping labels downward
+  for (let i = 1; i < n; i++) {
+    if (labelYs[i - 1] - labelYs[i] < MIN_GAP) {
+      labelYs[i] = labelYs[i - 1] - MIN_GAP;
+    }
+  }
+  // Top-down pass: push back upward if pushed below yMin
+  for (let i = n - 2; i >= 0; i--) {
+    if (labelYs[i] - labelYs[i + 1] < MIN_GAP) {
+      labelYs[i] = labelYs[i + 1] + MIN_GAP;
+    }
+  }
+
   sorted.forEach(({ anchor, label, labelZ }, i) => {
-    // Evenly distribute labels: top item → yMax, bottom → yMin
-    const labelY = n === 1
-      ? (yMin + yMax) / 2
-      : yMax - (i / (n - 1)) * span;
+    const labelY = labelYs[i];
 
     const lz = labelZ ?? anchor.z;
     const labelPos = new THREE.Vector3(labelX, labelY, lz);

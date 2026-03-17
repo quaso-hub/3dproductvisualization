@@ -1,5 +1,142 @@
 # Changelog
 
+---
+
+## [2026-03-17] — LAF System (11th Product) + Wall Panel Element Category Revision
+
+### LAF System — Laminar Air Flow (LAF) Ceiling System
+
+**Status:** Assembled + exploded view complete. Build clean (zero TS errors, 5.38s).
+
+**Product highlights:**
+- First ceiling-mounted product — camera starts from below (`assembledCameraStart: [80, -100, 120]`)
+- Horizontal orientation: 1200×1800mm footprint, only 370mm tall (120×180×37 scene units)
+- 6 HEPA H14 filter modules in 2×3 grid layout, ISO Class 5 / Class 100 classification
+- Tileable staggered-hex CanvasTexture (24×42px, RepeatWrapping) for perforated face diffuser
+- 4-group Y-axis explosion: face diffuser → HEPA filters → plenum box → suspension rods+collar
+
+**Files added:**
+- `src/app/products/laf-system.ts` — product definition, 7 camera presets, 12 specs
+- `src/app/components/LafSystemAssembled3D.tsx` — assembled view, 9 component groups, 8 annotations
+- `src/app/components/LafSystemExploded3D.tsx` — exploded view, 4 groups, GAP=30, 6 annotations
+
+**Files modified:**
+- `src/app/data/products.ts` — added `'laf-system'` to viewerType union
+- `src/app/products/index.ts` — registered as 11th product
+- `src/app/components/ProductViewer.tsx` — added routing branch
+
+**Key lessons → `memory/laf-system-lessons.md`**
+
+### Wall Panel Element Category Revision
+
+**Problem:** Sidebar showed "PANEL DINDING" (Indonesian) for wall panels. Spec catalog (page 2) uses "WALL PANEL ELEMENT" as the official product category name. Also, `Cleanroom` was a separate sidebar group from `Panel Dinding` even though both are wall panel products.
+
+**Fix:** Merged `'Panel Dinding'` + `'Cleanroom'` → single `'Wall Panel Element'` category. Updated all 3 products, `products.ts` type union, and `Sidebar.tsx` hardcoded maps.
+
+**Files modified:**
+- `src/app/data/products.ts` — ProductCategory type
+- `src/app/products/sandwich-radiasi.ts` — category, fullName, description, specs
+- `src/app/products/sandwich-standard.ts` — category, fullName, description, specs
+- `src/app/products/cleanroom.ts` — category, fullName, description
+- `src/app/components/Sidebar.tsx` — CATEGORY_ORDER, CATEGORY_ICONS
+
+---
+
+## [2026-03-15] — Scrub Sink 2 Bay: Full Geometry Rebuild (Missing Cabinet Body)
+
+### Status Akhir
+Assembled + exploded view berfungsi. Cabinet body 700mm terlihat, basins recessed jelas di Y≈80, mirrors dan canopy di upper section. Zero TS errors (`npm run build` clean).
+
+### Root Cause
+Zone 2 (700mm main cabinet body) tidak pernah dibangun. Hanya Zone 1 (base trim 60mm) dan Zone 3 (backsplash+mirrors+canopy 750mm) yang ada. Akibatnya:
+- Countertop di Y=6→10 (60–100mm dari lantai) bukan di Y=76→80 (760–800mm)
+- Basins invisible di isometric view (countertop di ground level)
+- Mirrors tampak "melayang" sangat dekat ke lantai
+
+### Iterasi (Kronologi)
+
+| # | Yang dilakukan | Hasilnya |
+|---|---|---|
+| 1 | Ubah camera preset dan warna basin interior | Tidak ada efek — basins masih invisible |
+| 2 | Rebuild penuh: tambah cabinet body T_CAB=70, shift semua geometry atas +70 | ✓ FIXED |
+
+### Fix (Zone Completeness Pattern)
+Tambah `T_CAB=70` (700mm cabinet body) antara base trim dan countertop.
+Semua geometry countertop-ke-atas digeser +70 units.
+Gunakan derived constants: `Y_CAB_TOP = T_BASE + T_CAB = 76`, `Y_CT_TOP = 80`.
+
+### Files Changed
+- `src/app/components/ScrubSinkAssembled3D.tsx` — full rebuild, added 700mm cabinet body with sliding doors, door rail, handles
+- `src/app/components/ScrubSinkExploded3D.tsx` — full rebuild, 5 assembly groups (G1=0, G2=111, G3=168, G4=228, G5=325)
+- `src/app/products/scrub-sink.ts` — camera presets updated, all targets at Y=80
+
+### Lessons Learned
+→ Lihat `memory/scrub-sink-lessons.md` untuk detail lengkap.
+
+**Rule:** Sebelum menulis geometry apapun, buat tabel zona + verifikasi sum = total tinggi.
+
+---
+
+## [2026-03-08] — PB Lead Door: Door Closer Mechanism — 9-Iteration Disaster & Final Fix
+
+### Status Akhir
+Mechanism sekarang berfungsi: housing flush ke header, rail menempel ke housing, slide block di rail, arm diagonal ke bracket di pintu. **Zero TypeScript errors. Zero runtime crash.**
+
+### Track Record Iterasi (Kronologi Kebodohan)
+
+| # | Yang dilakukan | Bug yang dihasilkan |
+|---|---|---|
+| 1 | Housing di `hCY = H_TOP_Y + HH/2` | Housing melayang di ATAS header, tidak menempel |
+| 2 | Housing pindah ke `H_BOT_Y + HH/2 + 0.2` | Gap 0.2 unit, arm ke frame bukan ke pintu |
+| 3 | ZC working plane `H_FRT_Z + 2.0 = 8.4` | Arm near-invisible (dY=0.05), arm masih ke frame |
+| 4 | BH 4.0→2.5 fix arm span | Arm tetap ke frame, terlalu silau |
+| 5 | Face-mount housing, pivot dari housing front | Math "benar" tapi visual salah — gap tetap ada |
+| 6 | `HH = FW` (fill header exactly), `hCY = HDR_CY` | Housing flush ✓ tapi rail `rCY = HDR_BOT - RH/2` drift dari housing |
+| 7 | Rail chained langsung: `rTopY = hCY - HH/2` | **Runtime crash** — `scene.add().position.set()` |
+| 8 | Fix crash tapi shortcut `Object.assign` masih ada | Crash tetap |
+| 9 | Rewrite semua mesh dengan variabel eksplisit | **FIXED** ✓ |
+
+### Root Causes Yang Ditemukan (Terlambat)
+
+**Bug #1 — Geometric drift**: Semua iterasi sebelumnya menghitung `HDR_BOT` secara independen (`DH/2 + FW - FW/2`) bukan dari actual header mesh position `DH/2 + FW/2 - FW/2`. Meski hasilnya sama numerically, pendekatan ini rentan drift bila header formula berubah.
+
+**Bug #2 — `scene.add()` return type**: `scene.add(mesh)` mengembalikan `THREE.Scene`, bukan `THREE.Mesh`. Menulis `scene.add(new THREE.Mesh(...)).position.set(...)` memanggil `.position` pada `Scene` → runtime `TypeError`. TypeScript **tidak menangkap ini** karena `Scene` juga memiliki `.position` (dari `Object3D`), tapi `.set()` pada Scene position tidak crash di tipe — hanya merusak posisi mesh yang tidak pernah ter-set.
+
+**Bug #3 — `Object.assign` pada position**: `Object.assign(mesh, { position: new THREE.Vector3(...) })` mengganti properti `position` dengan object baru tanpa memanggil Three.js internal update machinery. Mesh tetap di origin.
+
+### Penyebab Iterasi Terlalu Banyak
+1. **Tidak membaca kode aktual header** sebelum menulis section 7. Semua konstanta (`H_TOP_Y`, `H_BOT_Y`, `H_FRT_Z`) dihitung ulang di section 7 secara independen — tidak cross-check dengan actual `header.position.set(0, DH/2+FW/2, 0)` di section 1.
+2. **Math audit via Node.js hanya membuktikan angka, bukan kode**. Audit berulang kali menunjukkan "gap=0" tapi kode aktual punya bug berbeda (shortcut pattern, wrong chain).
+3. **Setiap iterasi fix satu bug tapi introduce bug baru** karena tidak membaca seluruh section dari awal — hanya replace bagian tertentu.
+
+### Fix Final (Iterasi 9)
+```ts
+// Semua posisi di-chain dari header actual position:
+const HDR_CY = DH / 2 + FW / 2;   // dari section 1: header.position.y
+const hCY    = HDR_CY;             // housing center = header center → HH=FW → top/bot flush
+const rTopY  = hCY - HH / 2;      // rail top = housing bottom (chained, zero gap)
+const rCY    = rTopY - RH / 2;    // rail center
+
+// Semua mesh: variabel eksplisit, lalu scene.add(mesh) terpisah
+const railMesh = new THREE.Mesh(...);
+railMesh.position.set(0, rCY, rCZ);
+scene.add(railMesh);
+```
+
+### Rule Baru Yang Harus Diikuti Selamanya
+1. **Baca actual mesh position dari section yang membuatnya** sebelum derive konstanta di section lain
+2. **Jangan pernah chain `.position.set()` setelah `scene.add()`** — selalu variabel terpisah
+3. **Jangan pakai `Object.assign` untuk set position Three.js mesh**
+4. **Math audit via Node.js harus menggunakan formula yang identik karakter per karakter dengan kode**, bukan formula yang "equivalent secara matematis"
+
+### Files Changed
+- `src/app/components/PbLeadDoorAssembled3D.tsx` — Section 7 rewritten 9 kali. Final state: 473 lines.
+
+### Biaya
+~$200 token terbuang untuk 9 iterasi yang seharusnya selesai dalam 1–2 iterasi jika membaca kode sumber terlebih dahulu.
+
+---
+
 ## [2026-03-06] — Annotation System Overhaul: `placeAnnotations()`
 
 ### Problem (Root Cause)

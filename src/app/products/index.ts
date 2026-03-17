@@ -16,7 +16,12 @@ import sandwichStandard from './sandwich-standard';
 import cleanroom        from './cleanroom';
 import curvingR40       from './curving';
 import hermeticDoor    from './hermetic-door';
-// import plafonSteel   from './plafon-steel';   // ← tambah di sini
+import pbLeadDoor       from './pb-lead-door';
+import scrubSink        from './scrub-sink';
+import passBox          from './pass-box';
+import pacsCabinet      from './pacs-cabinet';
+import returnAirGrille  from './return-air-grille';
+import lafSystem        from './laf-system';
 
 export const PRODUCTS: Product[] = [
   sandwichRadiasi,
@@ -24,7 +29,12 @@ export const PRODUCTS: Product[] = [
   cleanroom,
   curvingR40,
   hermeticDoor,
-  // plafonSteel,
+  pbLeadDoor,
+  scrubSink,
+  passBox,
+  pacsCabinet,
+  returnAirGrille,
+  lafSystem,
 ];
 
 /** Cari produk berdasarkan id slug. */

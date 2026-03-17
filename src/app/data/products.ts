@@ -26,10 +26,14 @@ export interface CameraPreset {
 export interface PanelDimensions {
   widthMm: number;
   heightMm: number;
+  /** Optional depth for 3-D products (sinks, cabinets). */
+  depthMm?: number;
   /** Three.js scene units (120 ≈ 1200 mm) */
   sceneWidth: number;
   /** Three.js scene units (300 ≈ 3000 mm) */
   sceneHeight: number;
+  /** Three.js scene units — optional depth axis. */
+  sceneDepth?: number;
 }
 
 export interface ProductSpec {
@@ -46,11 +50,11 @@ export type ViewType = 'assembled' | 'exploded';
 
 /**
  * Kategori produk — untuk grouping di sidebar.
+ * Nama sesuai katalog resmi ELFATECH (bahasa Inggris).
  * Tambah entry baru jika perlu kategori baru.
  */
 export type ProductCategory =
-  | 'Panel Dinding'
-  | 'Cleanroom'
+  | 'Wall Panel Element'   // panel dinding sandwich PIR/GI — sebelumnya 'Panel Dinding' + 'Cleanroom'
   | 'Plafon'
   | 'Lantai'
   | 'Pintu & Partisi'
@@ -76,8 +80,14 @@ export interface Product {
    * 'panel'         = flat sandwich panel (default, AssembledPanel3D / ExplodedPanel3D)
    * 'curving'       = profil-L aluminium dengan radius (CurvingAssembled3D / CurvingExploded3D)
    * 'hermetic-door' = pintu geser otomatis hermetic (HermeticDoorAssembled3D / HermeticDoorExploded3D)
+   * 'pb-lead-door'  = pintu swing otomatis berlapis Pb (PbLeadDoorAssembled3D / PbLeadDoorExploded3D)
+   * 'scrub-sink'    = wastafel scrub stainless steel (ScrubSinkAssembled3D / ScrubSinkExploded3D)
+   * 'pass-box'      = pass box stainless steel SUS-304 (PassBoxAssembled3D / PassBoxExploded3D)
+   * 'pacs-cabinet'  = lemari penyimpanan medis SUS-304 (PacsCabinetAssembled3D / PacsCabinetExploded3D)
+   * 'return-air-grille' = grille return air dinding SUS-304 (ReturnAirGrilleAssembled3D / ReturnAirGrilleExploded3D)
+   * 'laf-system'        = LAF ceiling system HVAC (LafSystemAssembled3D / LafSystemExploded3D)
    */
-  viewerType?: 'panel' | 'curving' | 'hermetic-door';
+  viewerType?: 'panel' | 'curving' | 'hermetic-door' | 'pb-lead-door' | 'scrub-sink' | 'pass-box' | 'pacs-cabinet' | 'return-air-grille' | 'laf-system';
   layers: Layer[];
   dimensions: PanelDimensions;
   specs: ProductSpec[];

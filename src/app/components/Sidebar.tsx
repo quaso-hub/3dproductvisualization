@@ -17,8 +17,7 @@ interface Props {
 }
 
 const CATEGORY_ORDER: ProductCategory[] = [
-  'Panel Dinding',
-  'Cleanroom',
+  'Wall Panel Element',
   'Plafon',
   'Lantai',
   'Pintu & Partisi',
@@ -26,12 +25,11 @@ const CATEGORY_ORDER: ProductCategory[] = [
 ];
 
 const CATEGORY_ICONS: Record<ProductCategory, string> = {
-  'Panel Dinding':    'Wall',
-  'Cleanroom':        'Wind',
-  'Plafon':           'Layers',
-  'Lantai':           'Square',
-  'Pintu & Partisi':  'DoorOpen',
-  'Lainnya':          'Package',
+  'Wall Panel Element': 'Wall',
+  'Plafon':             'Layers',
+  'Lantai':             'Square',
+  'Pintu & Partisi':    'DoorOpen',
+  'Lainnya':            'Package',
 };
 
 export function Sidebar({ products, selected, onSelect, isOpen, onToggle }: Props) {

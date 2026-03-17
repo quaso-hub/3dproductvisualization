@@ -71,6 +71,10 @@ export function useThreeScene({
     let initialized = false;
     let stopRender: (() => void) | undefined;
 
+    // ro must be declared before init() so the closure captures the correct reference
+    // eslint-disable-next-line prefer-const
+    let ro: ResizeObserver;
+
     const init = () => {
       if (initialized || container.clientWidth < 1 || container.clientHeight < 1) return;
       initialized = true;
@@ -84,7 +88,7 @@ export function useThreeScene({
       stopRender = startRenderLoop(refs);
     };
 
-    const ro = new ResizeObserver(init);
+    ro = new ResizeObserver(init);
     ro.observe(container);
     // Coba langsung kalau container sudah punya ukuran saat mount
     init();
