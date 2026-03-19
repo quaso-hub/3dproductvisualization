@@ -42,6 +42,11 @@ interface UseThreeSceneOptions {
    */
   onInit: (refs: SceneRefs) => void;
   /**
+   * Optional per-frame callback, dipanggil setiap RAF tick
+   * sebelum render. Gunakan untuk animasi (fan rotation, particles, dll).
+   */
+  onTick?: () => void;
+  /**
    * Array dependency — setiap kali nilai berubah,
    * scene di-dispose lalu di-rebuild.
    */
@@ -59,6 +64,7 @@ interface UseThreeSceneReturn {
 export function useThreeScene({
   sceneOptions,
   onInit,
+  onTick,
   deps,
 }: UseThreeSceneOptions): UseThreeSceneReturn {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -85,7 +91,7 @@ export function useThreeScene({
 
       onInit(refs);
 
-      stopRender = startRenderLoop(refs);
+      stopRender = startRenderLoop(refs, onTick);
     };
 
     ro = new ResizeObserver(init);

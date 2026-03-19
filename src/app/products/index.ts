@@ -22,6 +22,9 @@ import passBox          from './pass-box';
 import pacsCabinet      from './pacs-cabinet';
 import returnAirGrille  from './return-air-grille';
 import lafSystem        from './laf-system';
+import ceilingPanel     from './ceiling-panel';
+import surgicalPanel    from './surgical-panel';
+import hvacSystem       from './hvac-system';
 
 export const PRODUCTS: Product[] = [
   sandwichRadiasi,
@@ -35,6 +38,9 @@ export const PRODUCTS: Product[] = [
   pacsCabinet,
   returnAirGrille,
   lafSystem,
+  ceilingPanel,
+  surgicalPanel,
+  hvacSystem,
 ];
 
 /** Cari produk berdasarkan id slug. */

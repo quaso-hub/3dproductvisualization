@@ -147,12 +147,16 @@ function addCatalogLights(scene: THREE.Scene) {
 
 // ─── Render Loop ─────────────────────────────────────────────
 
-export function startRenderLoop(refs: SceneRefs): () => void {
+export function startRenderLoop(
+  refs: SceneRefs,
+  onTick?: () => void,
+): () => void {
   const { renderer, labelRenderer, scene, camera, controls } = refs;
   let frameId: number;
   const tick = () => {
     frameId = requestAnimationFrame(tick);
     controls.update();
+    onTick?.();
     renderer.render(scene, camera);
     labelRenderer.render(scene, camera);
   };

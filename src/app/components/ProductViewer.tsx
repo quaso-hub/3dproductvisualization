@@ -25,6 +25,11 @@ import { ReturnAirGrilleAssembled3D } from './ReturnAirGrilleAssembled3D';
 import { ReturnAirGrilleExploded3D }  from './ReturnAirGrilleExploded3D';
 import { LafSystemAssembled3D }       from './LafSystemAssembled3D';
 import { LafSystemExploded3D }        from './LafSystemExploded3D';
+import { CeilingPanelAssembled3D }    from './CeilingPanelAssembled3D';
+import { CeilingPanelExploded3D }     from './CeilingPanelExploded3D';
+import { SurgicalPanelAssembled3D }   from './SurgicalPanelAssembled3D';
+import { SurgicalPanelExploded3D }    from './SurgicalPanelExploded3D';
+import { HvacSystemBIM3D }            from './HvacSystemBIM3D';
 
 interface Props { product: Product }
 
@@ -209,6 +214,26 @@ export function ProductViewer({ product }: Props) {
               <LafSystemExploded3D key={`laf-exploded-${product.id}`} product={product} />
             )}
           </>
+        ) : product.viewerType === 'ceiling-panel' ? (
+          <>
+            {activeView === 'assembled' && (
+              <CeilingPanelAssembled3D key={`ceiling-assembled-${product.id}`} product={product} />
+            )}
+            {activeView === 'exploded' && (
+              <CeilingPanelExploded3D key={`ceiling-exploded-${product.id}`} product={product} />
+            )}
+          </>
+        ) : product.viewerType === 'surgical-panel' ? (
+          <>
+            {activeView === 'assembled' && (
+              <SurgicalPanelAssembled3D key={`surgical-assembled-${product.id}`} product={product} />
+            )}
+            {activeView === 'exploded' && (
+              <SurgicalPanelExploded3D key={`surgical-exploded-${product.id}`} product={product} />
+            )}
+          </>
+        ) : product.viewerType === 'hvac-system' ? (
+          <HvacSystemBIM3D key={`hvac-bim-${product.id}`} product={product} />
         ) : (
           <>
             {activeView === 'assembled' && (

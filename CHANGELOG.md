@@ -2,6 +2,149 @@
 
 ---
 
+## [2026-03-19] — HVAC System V2.1 — Atomic Detail Enhancement (LOD + InstancedMesh)
+
+### Zoom-In Believability — All Components
+
+**Problem:** V2 looked great at system-level but "low poly" when zoomed in close to individual components.
+**Solution:** THREE.LOD 2-tier system (detail <3m, simplified >=3m) + InstancedMesh for repeated elements. ~7,300 detail polys total, only ~2,500 rendered when zoomed into one component.
+
+**Files added:**
+- `src/app/components/hvac-bim-detail-helpers.ts` — 12 atom-level pure builder functions:
+  - `createBoltArray()` — InstancedMesh hex bolt arrays (M8, configurable count/positions)
+  - `createFilterMedia()` — Pleated filter with InstancedMesh pleats + aluminium frame
+  - `createCondenserFinPack()` — Dense InstancedMesh fins + copper tube pass-throughs
+  - `createAccessDoor()` — AHU access panel with cam latches, T-handle, rubber gasket
+  - `createDuctHanger()` — SMACNA hanger: threaded rods + galvanised strap + clamps
+  - `createDuctJoint()` — Angle flange ring + aluminium foil tape at joints
+  - `createVolumeDamper()` — Butterfly blades + electric actuator with indicator arc
+  - `createPipeSupportClips()` — U-bolt clips at intervals along CatmullRomCurve3
+  - `createFlareNut()` — Brass hex flare nut at pipe connections
+  - `createReturnGrilleHighDetail()` — InstancedMesh grid bars + frame + screws + gasket
+  - `createMagnehelicGauge()` — Round dial gauge with Canvas2D face, needle, glass cover
+  - `createVibrationIsolator()` — Spring mount + neoprene pad + top plate
+  - `createFlexConnector()` — Accordion bellows with clamp bands
+
+**Files modified:**
+- `src/app/components/hvac-bim-geometry.ts` — All 6 major builders enhanced with LOD detail layers:
+  - `buildAHUDetailed()` — panel seams, ~80 hex bolts, 3 access doors, magnehelic gauge, 4 vibration isolators, UV inspection window, flex connector, nameplate
+  - `buildOutdoorUnit()` — fan guard mesh, motor dome, condenser fin pack, service valves, rubber feet, electrical panel, nameplate
+  - `buildControlPanelAHU()` — 3-point cam latches, MCB toggle levers, DIN rail, cable glands, earth bus bar, door lock
+  - `buildSupplyDuct()` — SMACNA flange joints (~7), full hanger assemblies, volume damper + actuator, flex connector, access door
+  - `buildRefrigerantPiping()` — pipe support clips, flare nuts at endpoints, P-trap drain, insulation tape bands
+  - `buildReturnGrilles()` — per-grille LOD with individual grid bars, frame, screws, gasket
+  - `buildORCeiling()` LAF — divider bars (2×3 grid), HEPA filter frame edge, test port, cam lock retainers
+- `src/app/components/hvac-bim-materials.ts` — 4 new materials: `matRubberGasket`, `matAluminiumFoilTape`, `matBrassValve`, `matWireMesh`
+- `src/app/components/HvacSystemBIM3D.tsx` — LOD infrastructure:
+  - Camera: `near=0.05`, `far=50`, `minDistance=0.3`, `maxDistance=25`
+  - `lodObjectsRef` — collects all LOD objects at init
+  - `onTick` — calls `lod.update(camera)` per frame for automatic tier switching
+
+**Performance budget:** ~7,300 polys close-detail total, 29-36 draw calls. LOD ensures only nearby details render.
+
+---
+
+## [2026-03-18] — HVAC System V2 BIM-MEP Viewer (14th Product — Major Revision)
+
+### HVAC System — BIM-MEP Interactive OR Ventilation Diagram
+
+**Status:** V2 complete. Build clean (zero TS errors). 6 view modes, animated, click-to-inspect.
+
+**What changed from V1:**
+- V1: simple 2-view assembled/exploded (same as all other products)
+- V2: fully reimagined BIM-MEP visualization — first product with unified mode system, animations, and subsystem highlighting
+
+**Product highlights:**
+- **Unified BIM Component** — one `HvacSystemBIM3D.tsx` manages 6 internal modes (no tab bar)
+- **6 View Modes**: Full System · Supply Air (cyan) · Return Air (salmon) · Refrigerant (amber) · Floor Plan · Exploded
+- **Smooth mode transitions**: camera lerp 40 frames easeInOutCubic + instant material swap
+- **Subsystem highlighting**: MEP standard colors — cyan #00BCD4 / salmon #FF7043 / amber #FF8F00; non-highlighted groups dimmed to 0.08 opacity
+- **Animated fans**: AHU fan +0.03 rad/frame, Outdoor Unit +0.05 rad/frame
+- **Supply air particles**: 200 InstancedMesh cyan spheres falling from LAF (1 draw call)
+- **Click-to-inspect**: Raycaster `pointerdown` → info panel with component name, system badge, specs table
+- **OR room context**: 7×7×3m ghost walls + floor + ceiling + rooftop slab (ASHRAE 170 compliant layout)
+- **OR interior**: Operating table, surgical pendant, shadowless lamp
+- **Detailed geometry**: AHU with filter/coil/fan/UV/heater sections; CatmullRomCurve3 supply duct; TubeGeometry refrigerant pipes; 4 low sidewall return grilles
+- **True meter scale**: 1 unit = 1 meter (vs V1's 1 unit ≈ 50mm)
+- **Dark background**: #0B1520 for BIM-style presentation
+
+**Engine extension (backward-compatible):**
+- `src/app/lib/three-scene.ts` — added `onTick?: () => void` to `startRenderLoop`
+- `src/app/hooks/useThreeScene.ts` — threaded `onTick?` through interface
+
+**Files added:**
+- `src/app/components/hvac-bim-materials.ts` — 15 PBR material factories + `createHighlightMaterial()` + `getDimmedMaterial()`
+- `src/app/components/hvac-bim-modes.ts` — `MODE_CONFIGS`, `buildMeshRegistry()`, `applyMode()`, `createCameraLerp()`, `tickCameraLerp()`
+- `src/app/components/hvac-bim-geometry.ts` — `buildORRoom()`, `buildORInterior()`, `buildORCeiling()`, `buildAHUDetailed()`, `buildOutdoorUnit()`, `buildControlPanelAHU()`, `buildSupplyDuct()`, `buildReturnDucts()`, `buildReturnGrilles()`, `buildRefrigerantPiping()`, `buildRooftopGroup()`, `createSupplyParticles()`
+- `src/app/components/HvacSystemBIM3D.tsx` — unified React BIM viewer component
+
+**Files modified:**
+- `src/app/lib/three-scene.ts` — `onTick?` param added
+- `src/app/hooks/useThreeScene.ts` — `onTick?` threaded through
+- `src/app/products/hvac-system.ts` — `views: ['assembled']`, meter-scale camera presets
+- `src/app/components/ProductViewer.tsx` — routes to `HvacSystemBIM3D` (replaces old assembled/exploded pair)
+
+**Pending (after visual confirm):** Delete old V1 files — `HvacSystemAssembled3D.tsx`, `HvacSystemExploded3D.tsx`
+
+---
+
+## [2026-03-17] — Surgical Control Panel Room Touchscreen (13th Product)
+
+### Surgical Control Panel — Touchscreen Modbus TCP/IP
+
+**Status:** Assembled + exploded view complete. Build clean (zero TS errors).
+
+**Product highlights:**
+- First product with a **screen/UI** — Canvas2D-drawn emissive SCADA interface
+- Wall-mounted touchscreen 15.6" Full HD, flush-mount in dinding panel OR
+- Housing SUS 304 brushed 450×310×85mm with mounting flange
+- Dark medical UI theme: countdown timer (red), clock (green), room environment, medical gas monitoring, alarm indicators, L1/L2 lighting control, ELFATECH branding
+- Tempered glass overlay (transparent, subtle reflection)
+- 6 function buttons (LED backlit) below screen
+- Speaker grill on housing side
+- Wall fragment context (HPL white, with cutout)
+- Z-axis explosion (5 groups): PCB module → flange → housing → LCD → glass+buttons
+
+**Files added:**
+- `src/app/products/surgical-panel.ts` — product definition, 6 camera presets, 13 specs
+- `src/app/components/SurgicalPanelAssembled3D.tsx` — assembled view, Canvas2D UI texture, 8 annotations
+- `src/app/components/SurgicalPanelExploded3D.tsx` — exploded view, 5 groups, GAP=12, 7 annotations
+
+**Files modified:**
+- `src/app/data/products.ts` — added `'surgical-panel'` to viewerType union
+- `src/app/products/index.ts` — registered as 13th product
+- `src/app/components/ProductViewer.tsx` — added routing branch
+
+---
+
+## [2026-03-17] — Ceiling Panel System (12th Product)
+
+### Ceiling Panel System — PIR Sandwich + LED Grid + LAF Integrated
+
+**Status:** Assembled + exploded view complete. Build clean (zero TS errors).
+
+**Product highlights:**
+- First product in **Plafon** category — modular OR ceiling system
+- 2×2 grid module: 2400×2400mm (240×240 scene units), 4 panel openings
+- LED emissive grid as visual focal point — cool white 6000K strips in all frame bars
+- 3 solid PIR panels + 1 LAF diffuser panel (perforated ⌀2.4mm, 13% open area)
+- HEPA H14 filter above LAF panel, pendant column SUS 304 extending below
+- 4 hanger rods at module corners, mounting plate on top
+- Worm's eye camera from below (reuses LAF pattern)
+- 4-group Y-axis explosion: rods+plate → frame+LED → panels+HEPA → pendant
+
+**Files added:**
+- `src/app/products/ceiling-panel.ts` — product definition, 7 camera presets, 13 specs
+- `src/app/components/CeilingPanelAssembled3D.tsx` — assembled view, 9 component groups, 8 annotations
+- `src/app/components/CeilingPanelExploded3D.tsx` — exploded view, 4 groups, GAP=40, 7 annotations
+
+**Files modified:**
+- `src/app/data/products.ts` — added `'ceiling-panel'` to viewerType union
+- `src/app/products/index.ts` — registered as 12th product
+- `src/app/components/ProductViewer.tsx` — added routing branch
+
+---
+
 ## [2026-03-17] — LAF System (11th Product) + Wall Panel Element Category Revision
 
 ### LAF System — Laminar Air Flow (LAF) Ceiling System

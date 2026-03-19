@@ -86,8 +86,11 @@ export interface Product {
    * 'pacs-cabinet'  = lemari penyimpanan medis SUS-304 (PacsCabinetAssembled3D / PacsCabinetExploded3D)
    * 'return-air-grille' = grille return air dinding SUS-304 (ReturnAirGrilleAssembled3D / ReturnAirGrilleExploded3D)
    * 'laf-system'        = LAF ceiling system HVAC (LafSystemAssembled3D / LafSystemExploded3D)
+   * 'ceiling-panel'     = ceiling panel system PIR + LED grid + LAF integrated (CeilingPanelAssembled3D / CeilingPanelExploded3D)
+   * 'surgical-panel'    = surgical control panel touchscreen wall-mounted (SurgicalPanelAssembled3D / SurgicalPanelExploded3D)
+   * 'hvac-system'       = HVAC system diagram — 7 components in OR room context (HvacSystemAssembled3D / HvacSystemExploded3D)
    */
-  viewerType?: 'panel' | 'curving' | 'hermetic-door' | 'pb-lead-door' | 'scrub-sink' | 'pass-box' | 'pacs-cabinet' | 'return-air-grille' | 'laf-system';
+  viewerType?: 'panel' | 'curving' | 'hermetic-door' | 'pb-lead-door' | 'scrub-sink' | 'pass-box' | 'pacs-cabinet' | 'return-air-grille' | 'laf-system' | 'ceiling-panel' | 'surgical-panel' | 'hvac-system';
   layers: Layer[];
   dimensions: PanelDimensions;
   specs: ProductSpec[];
