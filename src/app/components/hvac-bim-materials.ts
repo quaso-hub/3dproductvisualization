@@ -146,6 +146,91 @@ export const matWireMesh = () => new THREE.MeshStandardMaterial({
   wireframe: true,
 });
 
+/* ── V3 Additional Materials ─────────────────────────────── */
+
+/** G4 Pre-filter — coarse tan synthetic media */
+export const matFilterG4 = () => new THREE.MeshStandardMaterial({
+  color: 0xD4C9A8, roughness: 0.88, metalness: 0.0,
+  transparent: true, opacity: 0.80,
+});
+
+/** F8/F9 Bag filter — pink-white fine media */
+export const matFilterF89 = () => new THREE.MeshStandardMaterial({
+  color: 0xE8D4D8, roughness: 0.85, metalness: 0.0,
+  transparent: true, opacity: 0.82,
+});
+
+/** Heater element — emissive orange-red glow */
+export const matHeaterElement = () => new THREE.MeshStandardMaterial({
+  color: 0x8B4513, roughness: 0.60, metalness: 0.70,
+  emissive: 0xFF4500, emissiveIntensity: 1.2,
+});
+
+/** UV-C germicidal lamp — emissive purple glow */
+export const matUVLamp = () => new THREE.MeshStandardMaterial({
+  color: 0x9966CC, roughness: 0.20, metalness: 0.10,
+  emissive: 0x7B2FBE, emissiveIntensity: 2.0,
+  transparent: true, opacity: 0.90,
+});
+
+/** Drain pan — galvanised steel with slight patina */
+export const matDrainPan = () => new THREE.MeshStandardMaterial({
+  color: 0x8A9BA8, roughness: 0.55, metalness: 0.75,
+});
+
+/** Section divider baffle — painted steel */
+export const matBaffle = () => new THREE.MeshStandardMaterial({
+  color: 0x6B7B8D, roughness: 0.60, metalness: 0.40,
+});
+
+/** PIU duct — warm tan (SMACNA standard colour) */
+export const matPIUDuct = () => new THREE.MeshStandardMaterial({
+  color: 0xB8A882, roughness: 0.55, metalness: 0.10,
+});
+
+/** SMACNA flange — bright galvanised ring */
+export const matSMACNAFlange = () => new THREE.MeshStandardMaterial({
+  color: 0xC8D0D8, roughness: 0.25, metalness: 0.85,
+});
+
+/** Aluminium tape joint band — very reflective */
+export const matAluminiumTape = () => new THREE.MeshStandardMaterial({
+  color: 0xE0E4E8, roughness: 0.08, metalness: 0.92,
+});
+
+/** Glass wall — transparent with blue tint for building shell */
+export const matGlassWall = () => new THREE.MeshStandardMaterial({
+  color: 0xD4E8F0, roughness: 0.05, metalness: 0.0,
+  transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false,
+});
+
+/** Solid wall — concrete/rendered finish for building shell */
+export const matSolidWall = () => new THREE.MeshStandardMaterial({
+  color: 0xD8D8D0, roughness: 0.80, metalness: 0.0,
+  transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false,
+});
+
+/** Fan scroll housing — cast iron / painted dark grey */
+export const matScrollHousing = () => new THREE.MeshStandardMaterial({
+  color: 0x404850, roughness: 0.50, metalness: 0.45,
+});
+
+/** Operating pad — medical green vinyl */
+export const matOperatingPad = () => new THREE.MeshStandardMaterial({
+  color: 0x3A7D6E, roughness: 0.70, metalness: 0.0,
+});
+
+/** Lamp LED strip — bright cool white emissive */
+export const matLampLED = () => new THREE.MeshStandardMaterial({
+  color: 0xFFFFFF, roughness: 0.30, metalness: 0.10,
+  emissive: 0xF0F4FF, emissiveIntensity: 3.0,
+});
+
+/** Gas outlet — medical colour-coded brass */
+export const matGasOutlet = () => new THREE.MeshStandardMaterial({
+  color: 0x3B8686, roughness: 0.35, metalness: 0.60,
+});
+
 /* ── Highlight / Dim Helpers ──────────────────────────────── */
 
 /** Create a highlighted clone: base material + emissive tint */

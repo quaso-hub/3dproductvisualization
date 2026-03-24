@@ -2,6 +2,40 @@
 
 ---
 
+## [2026-03-24] — HVAC System V3 "Remarkable" — Full Geometry Rewrite
+
+### Architecture: Modular V3 Geometry System
+
+**Problem:** V2 geometry looked "too simple" when zoomed in — AHU was just a box, ductwork lacked visible flanges/joints, no building shell cutaway, no AHU internal sections visible.
+
+**Solution:** Complete geometry rewrite split into 4 modular files, keeping proven V2 architecture (unified BIM component, 7-mode system, camera lerp, particles, raycaster).
+
+**New geometry files (4 + barrel):**
+- `hvac-v3-building.ts` (~200 lines) — OR room 6×6×3m, 4 walls (2 glass + 2 solid with EdgesGeometry wireframe), ceiling with 2 LAF openings (Shape+Holes), interstitial space Y=3→5, mechanical room X=6→9, roof wireframe
+- `hvac-v3-ahu.ts` (~400 lines) — **HERO**: AHU 1.2×3.0×0.93m with `Material.clippingPlanes` cutaway. Internal sections: inlet louvres (12 slats), G4 pre-filter (InstancedMesh pleats), F8/F9 filter, evaporator coil (InstancedMesh fins + copper tubes), drain pan, 6 heater elements (emissive glow), centrifugal fan (16 blades + scroll housing), UV-C lamp (2 tubes + purple PointLights), section divider baffles, 4 access doors, magnehelic gauge, flex connector
+- `hvac-v3-ductwork.ts` (~240 lines) — Supply trunk 0.6×0.4m + 2 branches 0.3×0.3m, return 4-branch + trunk. SMACNA flanges every 1.2m, hanger assemblies (threaded rod + strap + anchor), volume dampers with actuators, aluminium tape joints
+- `hvac-v3-equipment.ts` (~460 lines) — 2× LAF units (plenum + 2×3 HEPA H14 + 200 perforation holes InstancedMesh + LED strip), 4× return grilles (14 louver slats each), outdoor unit (200 InstancedMesh fins + Shape+Hole top panel + 3 blades + 4 guard rings), refrigerant piping (CatmullRomCurve3 suction+liquid + foam insulation + copper inner + support clips), OR equipment (operating table + shadowless lamp with SpotLight + 18 LED discs + surgical pendant with 4 gas outlets), 3 configurable airflow particle systems
+- `hvac-v3-index.ts` — Barrel re-export
+
+**Modified files:**
+- `three-scene.ts` — Added `localClippingEnabled` + `skipDefaultLights` to SceneOptions (backward compatible with defaults)
+- `hvac-bim-materials.ts` — +15 new material factories (matFilterG4, matFilterF89, matHeaterElement, matUVLamp, matDrainPan, matBaffle, matPIUDuct, matSMACNAFlange, matAluminiumTape, matGlassWall, matSolidWall, matScrollHousing, matOperatingPad, matLampLED, matGasOutlet)
+- `hvac-bim-modes.ts` — Added `ahu_cutaway` mode (7th mode), camera targeting AHU mechanical room
+- `HvacSystemBIM3D.tsx` — Full rewrite: V3 imports, custom 6-light setup (ambient + sun w/ shadows + AHU interior + OR room + UV ambient + rooftop), clipping plane for AHU cutaway, 3 independent particle systems (supply cyan, return salmon, refrigerant amber), UV pulsing + heater glow animations, 7-mode panel including AHU Cutaway
+- `hvac-system.ts` — Updated camera presets for 6×6m room, added AHU Cutaway preset
+
+**Deleted V1 files:**
+- `HvacSystemAssembled3D.tsx` (649 lines) — replaced by unified BIM in V2
+- `HvacSystemExploded3D.tsx` (503 lines) — replaced by unified BIM in V2
+
+**Key technical changes:**
+- Room: 7×7m → 6×6×3m. AHU at X=7.5 in mechanical room (X=6→9). Outdoor unit on roof at (4, 5.2, 4)
+- Clipping: `renderer.localClippingEnabled = true`, only AHU outer shell clipped — internals always visible
+- Scale: 1 unit = 1 meter (unchanged)
+- 7 modes: Full System, Supply Air, Return Air, Refrigerant, AHU Cutaway, Floor Plan, Exploded
+
+---
+
 ## [2026-03-19] — HVAC System V2.1 — Atomic Detail Enhancement (LOD + InstancedMesh)
 
 ### Zoom-In Believability — All Components

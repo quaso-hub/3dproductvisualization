@@ -52,17 +52,19 @@ const HVAC_SYSTEM: Product = {
   ],
 
   cameraPresets: [
-    { name: 'Isometric',         position: [12, 10, 12],   target: [1, 2.5, 0] },
-    { name: 'Tampak Depan',      position: [0, 3, 16],     target: [0, 2.5, 0] },
-    { name: 'Tampak Samping',    position: [16, 3, 0],     target: [0, 2.5, 0] },
-    { name: 'Tampak Atas',       position: [0, 20, 0.1],   target: [0, 0, 0] },
-    { name: 'Detail Rooftop',    position: [8, 8, 6],      target: [4, 5.5, 0] },
-    { name: 'Interior OR',       position: [0, 1.5, 5],    target: [0, 1.5, 0] },
-    { name: 'Perspektif',        position: [10, 8, 14],    target: [1, 2.5, 0] },
+    { name: 'Isometric',         position: [12, 10, 12],   target: [3, 2.5, 0] },
+    { name: 'Tampak Depan',      position: [3, 2.5, 16],   target: [3, 2.5, 0] },
+    { name: 'Tampak Samping',    position: [16, 3, 0],     target: [3, 2.5, 0] },
+    { name: 'Tampak Atas',       position: [3, 20, 0.1],   target: [3, 0, 0] },
+    { name: 'Detail Rooftop',    position: [8, 8, 6],      target: [4, 5.2, 0] },
+    { name: 'Interior OR',       position: [3, 1.5, 5],    target: [3, 1.5, 0] },
+    { name: 'AHU Cutaway',       position: [10, 1.5, 3],   target: [7.5, 0.6, 0] },
+    { name: 'Perspektif',        position: [10, 8, 14],    target: [3, 2.5, 0] },
   ],
 
   assembledCameraStart: [12, 10, 12],
   explodedCameraStart:  [14, 14, 14],
+  // V3: room 6×6×3m, AHU at X=7.5 (mechanical room X=6→9), outdoor unit at (4,5.2,4)
 };
 
 export default HVAC_SYSTEM;

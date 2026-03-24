@@ -1,11 +1,10 @@
 /**
  * HvacSystemBIM3D.tsx
  * ─────────────────────────────────────────────────────────────
- * Unified BIM-MEP Interactive Viewer for HVAC System.
- * 6 view modes, click-to-inspect, animated particles/fans,
- * color-coded subsystem highlighting.
- *
- * Replaces both HvacSystemAssembled3D + HvacSystemExploded3D.
+ * V3 Unified BIM-MEP Interactive Viewer for HVAC System.
+ * 7 view modes (incl. AHU Cutaway), click-to-inspect,
+ * 3 particle systems, animated fans, UV pulsing,
+ * clipping plane cutaway, custom multi-light setup.
  * ─────────────────────────────────────────────────────────────
  */
 
@@ -21,16 +20,18 @@ import type { SceneRefs } from '../lib/three-scene';
 import { ViewerControls } from './ViewerControls';
 
 import {
-  buildORRoom,
-  buildORInterior,
-  buildORCeiling,
-  buildSupplyDuct,
-  buildReturnDucts,
+  buildBuilding,
+  buildAHU, ahuCutPlane,
+  buildSupplyDuctwork,
+  buildReturnDuctwork,
+  buildLAFUnits,
   buildReturnGrilles,
+  buildOutdoorUnit,
   buildRefrigerantPiping,
-  buildRooftopGroup,
-  createSupplyParticles,
-} from './hvac-bim-geometry';
+  buildOREquipment,
+  buildControlPanel,
+  buildAirflowParticles,
+} from './hvac-v3-index';
 
 import {
   type HvacMode,
@@ -42,6 +43,8 @@ import {
   type CameraLerpState,
   type MeshRegistryEntry,
 } from './hvac-bim-modes';
+
+import { SUPPLY_CYAN, RETURN_SALMON, REFRIG_AMBER } from './hvac-bim-materials';
 
 /* ── Types ────────────────────────────────────────────────── */
 
@@ -58,15 +61,64 @@ interface Props {
 /* ── Mode UI Labels & Colors ──────────────────────────────── */
 
 const MODE_UI: Record<HvacMode, { label: string; shortLabel: string; color?: string; section: string }> = {
-  assembled:   { label: 'Full System',  shortLabel: 'FULL',   section: 'view' },
-  supply_air:  { label: 'Supply Air',   shortLabel: 'SUPPLY', color: '#00BCD4', section: 'subsystem' },
-  return_air:  { label: 'Return Air',   shortLabel: 'RETURN', color: '#FF7043', section: 'subsystem' },
-  refrigerant: { label: 'Refrigerant',  shortLabel: 'REFRIG', color: '#FF8F00', section: 'subsystem' },
-  floor_plan:  { label: 'Floor Plan',   shortLabel: 'PLAN',   section: 'drawing' },
-  exploded:    { label: 'Exploded',     shortLabel: 'EXPLODE',section: 'drawing' },
+  assembled:    { label: 'Full System',  shortLabel: 'FULL',     section: 'view' },
+  supply_air:   { label: 'Supply Air',   shortLabel: 'SUPPLY',   color: '#00BCD4', section: 'subsystem' },
+  return_air:   { label: 'Return Air',   shortLabel: 'RETURN',   color: '#FF7043', section: 'subsystem' },
+  refrigerant:  { label: 'Refrigerant',  shortLabel: 'REFRIG',   color: '#FF8F00', section: 'subsystem' },
+  ahu_cutaway:  { label: 'AHU Cutaway',  shortLabel: 'AHU',      color: '#8844FF', section: 'subsystem' },
+  floor_plan:   { label: 'Floor Plan',   shortLabel: 'PLAN',     section: 'drawing' },
+  exploded:     { label: 'Exploded',     shortLabel: 'EXPLODE',  section: 'drawing' },
 };
 
-const MODES_ORDER: HvacMode[] = ['assembled', 'supply_air', 'return_air', 'refrigerant', 'floor_plan', 'exploded'];
+const MODES_ORDER: HvacMode[] = [
+  'assembled', 'supply_air', 'return_air', 'refrigerant', 'ahu_cutaway', 'floor_plan', 'exploded',
+];
+
+/* ── Custom Lighting Setup ────────────────────────────────── */
+
+function setupV3Lighting(scene: THREE.Scene): void {
+  // Ambient (global fill)
+  scene.add(new THREE.AmbientLight(0xCCDDEE, 0.45));
+
+  // Sun (directional, with shadows)
+  const sun = new THREE.DirectionalLight(0xFFEEDD, 1.2);
+  sun.position.set(8, 12, 8);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.near = 0.5;
+  sun.shadow.camera.far = 30;
+  sun.shadow.camera.left = -12;
+  sun.shadow.camera.right = 12;
+  sun.shadow.camera.top = 12;
+  sun.shadow.camera.bottom = -12;
+  sun.shadow.bias = -0.0001;
+  scene.add(sun);
+
+  // AHU interior fill light (warm white)
+  const ahuLight = new THREE.PointLight(0xCCEEFF, 0.8, 4.0);
+  ahuLight.position.set(7.5, 0.6, 0);
+  scene.add(ahuLight);
+
+  // OR room ceiling light
+  const orLight = new THREE.PointLight(0xFFFFEE, 0.9, 6.0);
+  orLight.position.set(0, 2.9, 0);
+  scene.add(orLight);
+
+  // UV ambient glow
+  const uvAmbient = new THREE.PointLight(0x8844FF, 0.3, 2.0);
+  uvAmbient.position.set(7.8, 0.7, 1.3);
+  scene.add(uvAmbient);
+
+  // Rooftop light (industrial)
+  const roofLight = new THREE.DirectionalLight(0xEEFFFF, 0.6);
+  roofLight.position.set(3, 8, 3);
+  scene.add(roofLight);
+
+  // Fill light (from left-below, soften shadows)
+  const fill = new THREE.DirectionalLight(0xDDEEFF, 0.35);
+  fill.position.set(-6, 3, -6);
+  scene.add(fill);
+}
 
 /* ── Component ────────────────────────────────────────────── */
 
@@ -79,13 +131,17 @@ export function HvacSystemBIM3D({ product }: Props) {
   const groupMapRef = useRef<Map<string, THREE.Group>>(new Map());
   const registryRef = useRef<MeshRegistryEntry[]>([]);
   const origPosRef = useRef<Map<string, THREE.Vector3>>(new Map());
-  const ahuFanRef = useRef<THREE.Object3D | null>(null);
-  const oduFanRef = useRef<THREE.Object3D | null>(null);
-  const particleUpdateRef = useRef<(() => void) | null>(null);
+  const fanGroupRef = useRef<THREE.Group | null>(null);
+  const uvLightsRef = useRef<THREE.PointLight[]>([]);
+  const heaterMeshesRef = useRef<THREE.Mesh[]>([]);
+  const supplyParticlesRef = useRef<THREE.Points | null>(null);
+  const returnParticlesRef = useRef<THREE.Points | null>(null);
+  const refrigParticlesRef = useRef<THREE.Points | null>(null);
   const cameraLerpRef = useRef<CameraLerpState | null>(null);
   const interactiveMeshes = useRef<THREE.Mesh[]>([]);
   const activeModeRef = useRef<HvacMode>('assembled');
   const lodObjectsRef = useRef<THREE.LOD[]>([]);
+  const clockRef = useRef(new THREE.Clock());
 
   // Raycaster
   const raycaster = useRef(new THREE.Raycaster());
@@ -95,16 +151,49 @@ export function HvacSystemBIM3D({ product }: Props) {
 
   const onTick = useCallback(() => {
     const mode = activeModeRef.current;
+    const time = clockRef.current.getElapsedTime();
 
-    // Fan rotation (not in floor_plan)
-    if (mode !== 'floor_plan') {
-      if (ahuFanRef.current) ahuFanRef.current.rotation.z += 0.03;
-      if (oduFanRef.current) oduFanRef.current.rotation.z += 0.05;
+    // Fan rotation (AHU centrifugal fan)
+    if (mode !== 'floor_plan' && fanGroupRef.current) {
+      fanGroupRef.current.rotation.z += 0.03;
+    }
+
+    // UV lamp pulsing
+    for (const uvLight of uvLightsRef.current) {
+      uvLight.intensity = 1.2 + Math.sin(time * 8) * 0.2;
+    }
+
+    // Heater glow pulsing
+    for (const mesh of heaterMeshesRef.current) {
+      const mat = mesh.material as THREE.MeshStandardMaterial;
+      mat.emissiveIntensity = 1.0 + Math.sin(time * 3) * 0.3;
     }
 
     // Supply particles
-    if (particleUpdateRef.current && (mode === 'assembled' || mode === 'supply_air')) {
-      particleUpdateRef.current();
+    if (supplyParticlesRef.current?.userData.update &&
+        (mode === 'assembled' || mode === 'supply_air')) {
+      supplyParticlesRef.current.userData.update(time);
+      supplyParticlesRef.current.visible = true;
+    } else if (supplyParticlesRef.current) {
+      supplyParticlesRef.current.visible = false;
+    }
+
+    // Return particles
+    if (returnParticlesRef.current?.userData.update &&
+        (mode === 'assembled' || mode === 'return_air')) {
+      returnParticlesRef.current.userData.update(time);
+      returnParticlesRef.current.visible = true;
+    } else if (returnParticlesRef.current) {
+      returnParticlesRef.current.visible = false;
+    }
+
+    // Refrigerant particles
+    if (refrigParticlesRef.current?.userData.update &&
+        (mode === 'assembled' || mode === 'refrigerant')) {
+      refrigParticlesRef.current.userData.update(time);
+      refrigParticlesRef.current.visible = true;
+    } else if (refrigParticlesRef.current) {
+      refrigParticlesRef.current.visible = false;
     }
 
     // Camera lerp
@@ -114,7 +203,7 @@ export function HvacSystemBIM3D({ product }: Props) {
       if (!still) cameraLerpRef.current = null;
     }
 
-    // LOD update — auto-switches detail tiers based on camera distance
+    // LOD update
     if (refsRef.current) {
       const cam = refsRef.current.camera;
       for (const lod of lodObjectsRef.current) {
@@ -128,9 +217,11 @@ export function HvacSystemBIM3D({ product }: Props) {
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: {
       cameraStart: [12, 10, 12] as [number, number, number],
-      cameraTarget: [1, 2.5, 0] as [number, number, number],
+      cameraTarget: [3, 2, 3] as [number, number, number],
       minDistance: 0.3,
-      maxDistance: 25,
+      maxDistance: 30,
+      localClippingEnabled: true,
+      skipDefaultLights: true,
     },
     onInit: (refs: SceneRefs) => {
       const { scene, renderer, camera, controls } = refs;
@@ -142,58 +233,97 @@ export function HvacSystemBIM3D({ product }: Props) {
       const pmrem = new THREE.PMREMGenerator(renderer);
       scene.environment = pmrem.fromScene(new RoomEnvironment(0.04), 0.04).texture;
       pmrem.dispose();
-      renderer.toneMappingExposure = 1.1;
+      renderer.toneMappingExposure = 1.15;
 
-      // Camera — near/far for close-up zoom
+      // Camera setup
       camera.near = 0.05;
       camera.far = 50;
       camera.updateProjectionMatrix();
-      controls.target.set(1, 2.5, 0);
+      controls.target.set(3, 2, 3);
       camera.position.set(12, 10, 12);
       controls.update();
 
-      // ── Build all geometry ──
+      // Custom V3 lighting
+      setupV3Lighting(scene);
+
+      // ── Build all V3 geometry ──
       const gMap = groupMapRef.current;
       const origPos = origPosRef.current;
 
-      const orRoom = buildORRoom();
-      gMap.set('grp_building', orRoom);
-      scene.add(orRoom);
+      // Building shell (OR room + interstitial + mechanical room + roof)
+      const building = buildBuilding();
+      gMap.set('grp_building', building);
+      scene.add(building);
 
-      const orInterior = buildORInterior();
-      gMap.set('grp_or_interior', orInterior);
-      scene.add(orInterior);
+      // AHU (hero component with clipping plane)
+      const { group: ahu, uvLights, fanGroup, heaterMeshes } = buildAHU();
+      gMap.set('grp_ahu', ahu);
+      scene.add(ahu);
+      uvLightsRef.current = uvLights;
+      fanGroupRef.current = fanGroup;
+      heaterMeshesRef.current = heaterMeshes;
 
-      const orCeiling = buildORCeiling();
-      gMap.set('grp_or_ceiling', orCeiling);
-      scene.add(orCeiling);
-
-      const supplyDuct = buildSupplyDuct();
+      // Supply ductwork
+      const supplyDuct = buildSupplyDuctwork();
       gMap.set('grp_supply_duct', supplyDuct);
       scene.add(supplyDuct);
 
-      const returnDucts = buildReturnDucts();
-      gMap.set('grp_return_duct', returnDucts);
-      scene.add(returnDucts);
+      // Return ductwork
+      const returnDuct = buildReturnDuctwork();
+      gMap.set('grp_return_duct', returnDuct);
+      scene.add(returnDuct);
 
+      // LAF ceiling units
+      const lafUnits = buildLAFUnits();
+      gMap.set('grp_laf_units', lafUnits);
+      scene.add(lafUnits);
+
+      // Return grilles
       const returnGrilles = buildReturnGrilles();
       gMap.set('grp_return_grilles', returnGrilles);
       scene.add(returnGrilles);
 
-      const { group: rooftop, ahuFanRef: aFan, oduFanRef: oFan } = buildRooftopGroup();
-      gMap.set('grp_rooftop', rooftop);
-      scene.add(rooftop);
-      ahuFanRef.current = aFan;
-      oduFanRef.current = oFan;
+      // Outdoor unit (rooftop)
+      const odu = buildOutdoorUnit();
+      gMap.set('grp_outdoor_unit', odu);
+      scene.add(odu);
 
+      // Refrigerant piping
       const piping = buildRefrigerantPiping();
-      gMap.set('grp_piping', piping);
+      gMap.set('grp_refrigerant_pipes', piping);
       scene.add(piping);
 
-      const { group: particles, update: particleUpdate } = createSupplyParticles();
-      gMap.set('grp_particles', particles);
-      scene.add(particles);
-      particleUpdateRef.current = particleUpdate;
+      // OR equipment
+      const orEquip = buildOREquipment();
+      gMap.set('grp_or_equipment', orEquip);
+      scene.add(orEquip);
+
+      // Control panel
+      const ctrlPanel = buildControlPanel();
+      gMap.set('grp_control_panel', ctrlPanel);
+      scene.add(ctrlPanel);
+
+      // Particle systems (3 independent)
+      const supplyP = buildAirflowParticles(
+        [[7.2, 1.8, 0], [3.0, 4.2, 0], [-1.5, 3.1, 0], [-1.5, 3.0, 0], [-1.5, 0, 0]],
+        SUPPLY_CYAN, 100, 0.007,
+      );
+      scene.add(supplyP);
+      supplyParticlesRef.current = supplyP;
+
+      const returnP = buildAirflowParticles(
+        [[-2.8, 0.6, 0], [-2.8, 2.5, 0], [0, 2.5, 0], [7.2, 1.5, 0]],
+        RETURN_SALMON, 80, 0.006,
+      );
+      scene.add(returnP);
+      returnParticlesRef.current = returnP;
+
+      const refrigP = buildAirflowParticles(
+        [[4.0, 5.2, 4.0], [6.0, 4.0, 2.0], [7.5, 0.8, 0.5]],
+        REFRIG_AMBER, 60, 0.004,
+      );
+      scene.add(refrigP);
+      refrigParticlesRef.current = refrigP;
 
       // Snapshot original positions
       for (const [name, group] of gMap) {
@@ -210,11 +340,9 @@ export function HvacSystemBIM3D({ product }: Props) {
           iMeshes.push(obj as THREE.Mesh);
         }
       });
-      // Also collect groups with specs and find their first mesh child
       for (const [, group] of gMap) {
         group.traverse((child) => {
           if (child.userData?.specs && !iMeshes.includes(child as THREE.Mesh)) {
-            // For groups, add first mesh child
             child.traverse((sub) => {
               if ((sub as THREE.Mesh).isMesh && !iMeshes.includes(sub as THREE.Mesh)) {
                 iMeshes.push(sub as THREE.Mesh);
@@ -225,7 +353,7 @@ export function HvacSystemBIM3D({ product }: Props) {
       }
       interactiveMeshes.current = iMeshes;
 
-      // Collect all LOD objects for per-frame update
+      // Collect LOD objects
       const lods: THREE.LOD[] = [];
       scene.traverse((obj) => {
         if (obj instanceof THREE.LOD) lods.push(obj);
@@ -256,7 +384,6 @@ export function HvacSystemBIM3D({ product }: Props) {
       cameraLerpRef.current = createCameraLerp(mode, refsRef.current.camera, refsRef.current.controls, 45);
     }
 
-    // Close info panel on mode change
     setSelectedComponent(null);
   }, [refsRef]);
 
@@ -274,7 +401,6 @@ export function HvacSystemBIM3D({ product }: Props) {
     const hits = raycaster.current.intersectObjects(interactiveMeshes.current, false);
 
     if (hits.length > 0) {
-      // Walk up parent chain to find userData.specs
       let obj: THREE.Object3D | null = hits[0].object;
       while (obj) {
         if (obj.userData?.specs) {
@@ -288,7 +414,6 @@ export function HvacSystemBIM3D({ product }: Props) {
         obj = obj.parent;
       }
     }
-    // Click on empty → close
     setSelectedComponent(null);
   }, [refsRef]);
 
@@ -359,7 +484,6 @@ export function HvacSystemBIM3D({ product }: Props) {
             const ui = MODE_UI[modeId];
             const isActive = activeMode === modeId;
 
-            // Section dividers
             const prevSection = idx > 0 ? MODE_UI[MODES_ORDER[idx - 1]].section : '';
             const showDivider = idx > 0 && ui.section !== prevSection;
 
@@ -404,7 +528,6 @@ export function HvacSystemBIM3D({ product }: Props) {
         {/* ── Info Panel (Right, on click) ── */}
         {selectedComponent && (
           <div className="absolute right-2 top-4 z-10 w-64 bg-slate-900/90 backdrop-blur-sm rounded-lg shadow-xl border border-slate-700/50 overflow-hidden">
-            {/* Header */}
             <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-700/50">
               <span
                 className="w-2.5 h-2.5 rounded-full flex-shrink-0"
@@ -420,7 +543,6 @@ export function HvacSystemBIM3D({ product }: Props) {
                 &times;
               </button>
             </div>
-            {/* System badge */}
             <div className="px-3 py-1">
               <span className="text-[10px] font-semibold uppercase tracking-wider"
                 style={{ color: systemColor(selectedComponent.system) }}
@@ -428,7 +550,6 @@ export function HvacSystemBIM3D({ product }: Props) {
                 {selectedComponent.system}
               </span>
             </div>
-            {/* Specs table */}
             <div className="px-3 pb-2">
               <table className="w-full text-[11px]">
                 <tbody>
@@ -450,8 +571,8 @@ export function HvacSystemBIM3D({ product }: Props) {
             { label: 'Supply', color: '#00BCD4' },
             { label: 'Return', color: '#FF7043' },
             { label: 'Refrigerant', color: '#FF8F00' },
+            { label: 'UV-C', color: '#8844FF' },
             { label: 'Copper', color: '#B87333' },
-            { label: 'Insulation', color: '#2D3436' },
           ].map((item) => (
             <div key={item.label} className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />

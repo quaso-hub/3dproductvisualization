@@ -18,7 +18,8 @@ export type HvacMode =
   | 'return_air'
   | 'refrigerant'
   | 'floor_plan'
-  | 'exploded';
+  | 'exploded'
+  | 'ahu_cutaway';
 
 export interface ModeConfig {
   id: HvacMode;
@@ -87,6 +88,16 @@ export const MODE_CONFIGS: Record<HvacMode, ModeConfig> = {
     label: 'Exploded',
     description: 'Layer terpisah — semua subsistem dipisah vertikal',
     camera: { position: [14, 14, 14], target: [0, 3, 0] },
+  },
+
+  ahu_cutaway: {
+    id: 'ahu_cutaway',
+    label: 'AHU Cutaway',
+    description: 'Detail internal AHU — filter, coil, fan, UV-C lamp terlihat',
+    camera: { position: [10, 1.5, 3], target: [7.5, 0.6, 0] },
+    highlightGroups: ['grp_ahu'],
+    highlightColor: SUPPLY_CYAN,
+    dimOpacity: 0.12,
   },
 };
 

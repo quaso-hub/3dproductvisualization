@@ -30,12 +30,16 @@ export interface SceneOptions {
   minDistance?: number;
   /** max orbit distance (default 1000) */
   maxDistance?: number;
+  /** Enable renderer.localClippingEnabled for material clipping planes (default false) */
+  localClippingEnabled?: boolean;
+  /** Skip default 4-point catalog lights — caller will add custom lighting (default false) */
+  skipDefaultLights?: boolean;
 }
 
 // ─── Scene Bootstrap ─────────────────────────────────────────
 
 export function createScene(opts: SceneOptions): SceneRefs {
-  const { container, cameraStart, minDistance = 150, maxDistance = 1000 } = opts;
+  const { container, cameraStart, minDistance = 150, maxDistance = 1000, localClippingEnabled = false, skipDefaultLights = false } = opts;
 
   // Read actual size — container must already be in the DOM with real dimensions
   const w = container.clientWidth  || 800;
@@ -60,6 +64,7 @@ export function createScene(opts: SceneOptions): SceneRefs {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.2;
+  if (localClippingEnabled) renderer.localClippingEnabled = true;
 
   // Canvas fills the container via CSS
   const canvas = renderer.domElement;
@@ -105,7 +110,7 @@ export function createScene(opts: SceneOptions): SceneRefs {
   (renderer as THREE.WebGLRenderer & { _ro?: ResizeObserver })._ro = ro;
 
   /* ── 4-Point Catalog Lighting ── */
-  addCatalogLights(scene);
+  if (!skipDefaultLights) addCatalogLights(scene);
 
   return { scene, camera, renderer, controls, labelRenderer };
 }
