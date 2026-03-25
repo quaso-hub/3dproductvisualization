@@ -132,9 +132,9 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   scene.background = new THREE.Color(0xedf2f5);
   pmrem.dispose();
 
-  // ── 0b. Wall (blue-grey medical room reference) ─────────────
+  // ── 0b. Wall (blue-grey medical room reference) — FIX: closer to frame ────
   const wall = new THREE.Mesh(box(WALL_W, WALL_H, 3), matWall());
-  wall.position.set(0, 2.5, -(DT / 2 + FD / 2 + 3));
+  wall.position.set(0, 2.5, -(DT / 2 + FD / 2 + 1)); // FIX: reduced from 3 to 1 for better connection
   wall.receiveShadow = true;
   scene.add(wall);
 
