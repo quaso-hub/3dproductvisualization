@@ -152,6 +152,9 @@ function matAluminium() {
 }
 
 // ─── Geometry helpers ─────────────────────────────────────────────────────────
+function box(w: number, h: number, d: number) {
+  return new THREE.BoxGeometry(w, h, d);
+}
 
 function addBox(
   parent: THREE.Object3D,
