@@ -573,7 +573,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
   const MIRROR_W = 55;
   const MIRROR_H = 40;
   const mirrorZ = bsZ + 4;
-  
+
   // FIX 1.3: Mirror repositioned dengan proper clearance
   // canopyBottom = Y_CANOPY_TOP - canopyH = 155 - 4 = 151
   // backsplashTop = Y_BS_TOP = 120
@@ -581,9 +581,9 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
   const canopyBottom = Y_CANOPY_TOP - canopyH;
   const mirrorClearanceTop = 5; // 50mm dari canopy bottom
   const mirrorClearanceBottom = 5; // 50mm dari backsplash top
-  
-  // Mirror center Y: backsplashTop + clearance + half mirror height
-  const mirrorCY = backsplashTop + mirrorClearanceBottom + MIRROR_H / 2;
+
+  // Mirror center Y: Y_BS_TOP + clearance + half mirror height
+  const mirrorCY = Y_BS_TOP + mirrorClearanceBottom + MIRROR_H / 2;
   // mirrorCY = 120 + 5 + 20 = 145
 
   ([BAY_CX_L, BAY_CX_R]).forEach((mx) => {
