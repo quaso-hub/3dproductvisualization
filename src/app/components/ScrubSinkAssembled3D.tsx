@@ -231,17 +231,18 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
     scene.add(dot);
   });
 
-  // ── 9. Mirrors — 2× transparent + SS frames ─────────────────────────────
+  // ── 9. Mirrors — 2× transparent + SS frames — FIX: better clearance ─────
   // Mirror glass: Y = 83 → 143 (60 units tall, centre Y=113), Z=−28.5
+  // FIX: lowered by 5 units for better clearance from canopy (was 113, now 108)
   const mirrorMat = matMirror();
   const frameMat  = matSSPolished();
 
   ([-40, 40]).forEach((mx) => {
-    addBox(scene, 55, 60, 1,   mx,         113, -28.5, mirrorMat, false); // glass
-    addBox(scene, 59, 2,  1.2, mx,         145, -28.5, frameMat);         // top bar
-    addBox(scene, 59, 2,  1.2, mx,          83, -28.5, frameMat);         // bottom bar
-    addBox(scene, 2,  60, 1.2, mx - 28.5,  113, -28.5, frameMat);        // left bar
-    addBox(scene, 2,  60, 1.2, mx + 28.5,  113, -28.5, frameMat);        // right bar
+    addBox(scene, 55, 60, 1,   mx,         108, -28.5, mirrorMat, false); // glass (lowered from 113)
+    addBox(scene, 59, 2,  1.2, mx,         140, -28.5, frameMat);         // top bar (lowered from 145)
+    addBox(scene, 59, 2,  1.2, mx,          78, -28.5, frameMat);         // bottom bar (lowered from 83)
+    addBox(scene, 2,  60, 1.2, mx - 28.5,  108, -28.5, frameMat);        // left bar (lowered from 113)
+    addBox(scene, 2,  60, 1.2, mx + 28.5,  108, -28.5, frameMat);        // right bar (lowered from 113)
   });
 
   // ── 10. Canopy + LED UV strip ─────────────────────────────────────────────
