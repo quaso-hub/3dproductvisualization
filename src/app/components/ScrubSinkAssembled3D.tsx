@@ -190,11 +190,12 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
   addBox(scene, 60, T_CT, 7.5,  -40, CT_CY, -26.25,  ctMat); // back rim left basin
   addBox(scene, 60, T_CT, 7.5,   40, CT_CY, -26.25,  ctMat); // back rim right basin
 
-  // ── 6. Basin inserts — top face flush with Y_CT_TOP = 80 ─────────────────
+  // ── 6. Basin inserts — FIX: integrated with countertop ───────────────────
   // Height = 22, centre Y = Y_CT_TOP − 11 = 69 → top at 69+11=80 ✓
+  // FIX: raised by 2 units to overlap with countertop for better integration
   const basinMat = matBasinInterior();
-  addBox(scene, 60, 22, 45, -40, 69, -7.5, basinMat);
-  addBox(scene, 60, 22, 45,  40, 69, -7.5, basinMat);
+  addBox(scene, 60, 22, 45, -40, 71, -7.5, basinMat); // raised from 69 to 71
+  addBox(scene, 60, 22, 45,  40, 71, -7.5, basinMat); // raised from 69 to 71
 
   // ── 7. Back panel / backsplash (Y = Y_CT_TOP → +75 = 80 → 155) ──────────
   addBox(scene, W, 75, 2, 0, 117.5, BP_Z, matSSMatte());
