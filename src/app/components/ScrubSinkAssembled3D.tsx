@@ -101,16 +101,19 @@ const matBasinInterior = () =>
   });
 
 const matMirror = () =>
+  // BUGFIX 2026-05-25: previous version was metalness=0 + opacity=0.92
+  // (transparent), which rendered the mirror as a barely-visible blue glass
+  // sheet — frame was visible but the reflective face wasn't. A real surgical
+  // mirror is opaque + perfectly reflective. Setting metalness=1.0 and
+  // opacity=1.0 makes envMap (RoomEnvironment via PMREM) act as a true
+  // mirror reflection. Tint kept very subtle (0xeaf6ff) for clinical bias.
   new THREE.MeshPhysicalMaterial({
-    color: 0xb0e0f0,
-    roughness: 0.04,
-    metalness: 0,
-    transparent: true,
-    opacity: 0.92,
-    side: THREE.DoubleSide,
-    envMapIntensity: 1.6,
-    clearcoat: 0.6,
-    clearcoatRoughness: 0.05,
+    color: 0xeaf6ff,
+    roughness: 0.02,
+    metalness: 1.0,
+    envMapIntensity: 2.0,
+    clearcoat: 0.4,
+    clearcoatRoughness: 0.04,
   });
 
 const matLEDStrip = () =>
@@ -190,8 +193,12 @@ function addMeshGroup(scene: THREE.Object3D, geos: THREE.BufferGeometry[], mat: 
  * dengan plane untuk floor slope.
  */
 function buildSculptedBasin(scene: THREE.Object3D, cx: number): void {
-  const bw = 56;
-  const bd = 41;
+  // BUGFIX 2026-05-25: previously rim was 56×41 but countertop hole was 60×45,
+  // leaving a 2-unit dark gap around every basin (visible "kapal pecah" effect).
+  // Now rim outer = countertop hole size (60×45) exactly, with bevel filling
+  // the seam so the basin reads as integral with the countertop slab.
+  const bw = 60;     // matches countertop holeBasin width (was 56)
+  const bd = 45;     // matches countertop holeBasin depth (was 41)
   const bh = 22;
   const baseY = Y_CT_TOP - bh;
 
@@ -605,6 +612,17 @@ function buildSculptedFootPedal(scene: THREE.Object3D, px: number): void {
 function buildSculptedMirror(scene: THREE.Object3D, mx: number): void {
   const frame = matSSPolished();
   const glass = matMirror();
+
+  // BUGFIX 2026-05-25: previous mirror floated in air with no visible
+  // mounting context. Add 2 small SS bracket tabs at top + bottom so side
+  // view reads as wall-mounted (mounted to backsplash at Z=-29).
+  const bracketGeo = new THREE.BoxGeometry(2.5, 1.0, 0.6);
+  for (const by of [78, 138]) {
+    const bracket = new THREE.Mesh(bracketGeo, matSSPolished());
+    bracket.position.set(mx, by, -28.0); // Z slightly forward of backsplash face
+    bracket.castShadow = true;
+    scene.add(bracket);
+  }
 
   // Glass slab
   const glassMesh = new THREE.Mesh(
@@ -1036,6 +1054,11 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
   scene.add(backsplash);
 
   // Cove transition strip (integral curve from countertop → backsplash, no joint visible)
+  // BUGFIX 2026-05-25: previous version translated the extrusion by +W/2 in
+  // geometry space, then offset mesh by -W/2 in world. Net result: cove ran
+  // from x=0 to x=W (sticking out past +W/2 right edge by W/2). Now extrusion
+  // runs from 0 to W along +X by default; we mesh-position at -W/2 so it
+  // spans -W/2..+W/2, centered. The phantom 80-unit bar is gone.
   const coveProfile = new THREE.Shape();
   coveProfile.moveTo(0, 0);
   coveProfile.lineTo(2.5, 0);
@@ -1046,7 +1069,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
     bevelEnabled: false,
   });
   coveGeo.rotateY(Math.PI / 2);
-  coveGeo.translate(W / 2, 0, 0);
+  // (no translate — extrusion now naturally runs 0..W along +X)
   const cove = new THREE.Mesh(coveGeo, matSSPolished());
   cove.position.set(-W / 2, Y_CT_TOP, BP_Z + 1.2);
   cove.castShadow = true;
@@ -1081,6 +1104,18 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
   const canopyGroup = new THREE.Group();
   canopyGroup.userData.partId = 'canopy';
   scene.add(canopyGroup);
+
+  // BUGFIX 2026-05-25: previous version had canopy + mirror floating in air
+  // with no visible support hardware. Real OR scrub sinks have either wall
+  // posts or end-caps connecting backsplash to canopy. Add 2 vertical SS
+  // posts at canopy ends so the side view reads as integral assembly.
+  const supportPostGeo = new THREE.CylinderGeometry(0.6, 0.6, 5, 16);
+  for (const sx of [-78, 78]) {
+    const post = new THREE.Mesh(supportPostGeo, matSSPolished());
+    post.position.set(sx, 152, -22);
+    post.castShadow = true;
+    canopyGroup.add(post);
+  }
 
   const canopy = new THREE.Mesh(roundedBox(164, 5, 14, 0.4, 2), matSSPolished());
   canopy.position.set(0, 152.5, -22);
