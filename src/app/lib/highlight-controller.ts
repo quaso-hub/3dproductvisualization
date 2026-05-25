@@ -107,17 +107,31 @@ export class HighlightController {
 
   /**
    * Walk the scene and register every Mesh that has `userData.partId`.
+   * Inherits partId from any parent Object3D if mesh itself has none —
+   * lets viewers wrap a section in a Group with `group.userData.partId = '...'`
+   * instead of tagging every child mesh.
+   *
    * Call this AFTER your viewer's buildScene() finishes adding objects.
    */
   scanScene(): void {
     this.partsByMeshId.clear();
     this.allMeshes = [];
 
+    const resolvePartId = (obj: THREE.Object3D): string | undefined => {
+      let cur: THREE.Object3D | null = obj;
+      while (cur) {
+        const id = cur.userData?.partId;
+        if (typeof id === 'string' && id.length > 0) return id;
+        cur = cur.parent;
+      }
+      return undefined;
+    };
+
     this.scene.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (!mesh.isMesh) return;
-      const partId: string | undefined = mesh.userData?.partId;
-      if (!partId || typeof partId !== 'string') return;
+      const partId = resolvePartId(mesh);
+      if (!partId) return;
 
       const existing = this.partsByMeshId.get(partId) ?? [];
       existing.push({

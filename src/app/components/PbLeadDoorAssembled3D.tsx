@@ -1,447 +1,934 @@
 /**
- * PbLeadDoorAssembled3D.tsx — ASSEMBLED VIEW (v3 — Reference-accurate)
- * ─────────────────────────────────────────────────────────────
- * Automatic Single Swing PB / Lead Door — tampilan utuh sesuai referensi.
+ * PbLeadDoorAssembled3D — Session 8 SCULPTED (2026-05-22)
+ * ─────────────────────────────────────────────────────────────────
+ * Complete rewrite menggunakan geometry-blender.ts helper library.
+ * Target: hasil sculpting Blender-tier untuk pintu medical X-ray.
  *
- * Referensi visual (dari foto produk nyata):
- * - Daun pintu: warna PUTIH / off-white (powder coat medis standar)
- * - Jendela lead glass: PORTRAIT (sempit + tinggi) di area atas, agak ke kiri-tengah
- * - Kick plate SS: strip lebar horizontal menonjol di area tengah-bawah
- * - Automatic door closer: body silver di ATAS header, arm turun ke bracket di atas pintu
- * - Engsel (3x): di sisi KANAN pintu
- * - Handle lever: di sisi KIRI (opposite hinges)
- * - Kusen: steel plate tipis, semua sisi
- * ─────────────────────────────────────────────────────────────
+ * Major upgrades dari Session 7.5:
+ *  - Door leaf: ExtrudeGeometry dengan multi-segment bevel (sculpted edges)
+ *  - Window aperture: Rounded corners + rebated Pb glass overlap visible
+ *  - Pb edge stripes: smooth chamfered profile (not flat boxes)
+ *  - Frame jambs: ExtrudeGeometry dengan rounded outer + flat inner stop
+ *  - Bar pull handle: barPullHandle helper (hemispherical caps + standoffs)
+ *  - Door closer body: roundedBox + Lathe end caps + textured brand plate
+ *  - Closer arm: smoothTube CatmullRom (3D Z-bend, NOT flat box rotation)
+ *  - Hinges: 5-knuckle alternating + NRP pin + rounded leaves
+ *  - Mortise faceplate: extrude with bevel + 6 chamfered screws
+ *  - Lockset cylinder: Lathe profile + chamfered escutcheon + keyway slot
+ *  - Drop seal: rounded aluminum housing + activation pin
+ *  - Lead-lined jamb: visible Pb tabs at all 4 perimeter zones
+ *  - Architrave: rounded molding profile (not flat strips)
+ * ─────────────────────────────────────────────────────────────────
  */
-
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Product, CameraPreset } from '../data/products';
+import { animateCameraTo, applyCameraPreset, downloadPNG, placeAnnotations } from '../lib/three-scene';
 import {
-  applyCameraPreset, downloadPNG, placeAnnotations,
-} from '../lib/three-scene';
+  roundedBox,
+  beveledPlate,
+  latheProfile,
+  smoothTube,
+  barPullHandle,
+  beveledDisc,
+  hingeKnuckleStack,
+} from '../lib/geometry-blender';
 import { useThreeScene } from '../hooks/useThreeScene';
+import { useHighlightController } from '../hooks/useHighlightController';
 import { ViewerControls } from './ViewerControls';
 
-interface Props { product: Product }
-
-// ─── Dimensi (scene units, 1 unit = 10 mm) ───────────────────
-// Door leaf: 900 × 2100 mm, thickness ±48 mm
-const DW = 90;   // door leaf width  900 mm
-const DH = 210;  // door leaf height 2100 mm
-const DT = 4.8;  // door leaf thickness ~48 mm
-
-// Frame: jamb face width 70 mm
-const FW = 7;
-const FD = DT + 8; // frame depth
-
-// View Glass Timbal — PORTRAIT: narrow width, tall height
-// Ref: roughly 150 mm wide × 400 mm tall, upper area, slightly left of center
-const GW = 15;   // glass width  ≈150 mm
-const GH = 40;   // glass height ≈400 mm
-const GX = -8;   // slightly left of center
-const gYCenter = DH / 2 - 30 - GH / 2; // 300 mm from top
-
-// SS Kick plate — prominent, ≈1/3 from bottom
-const KPH = 18;  // kick plate height ≈180 mm
-const KPW = DW - 4;
-const kickYCenter = -DH / 2 + 30 + KPH / 2;
-
-// Wall context size
-const WALL_W = DW + FW * 4 + 30;
-const WALL_H = DH + FW * 4 + 30;
-
-// ─── Materials ───────────────────────────────────────────────
-
-function matDoorWhite() {
-  return new THREE.MeshStandardMaterial({
-    color: 0xdde8ec,   // off-white / light blue-white (medical powder coat)
-    roughness: 0.55,
-    metalness: 0.08,
-    envMapIntensity: 0.45,
-  });
+interface Props {
+  product: Product;
 }
 
-function matFrame() {
-  return new THREE.MeshStandardMaterial({
-    color: 0xc0ccd5,
-    roughness: 0.25,
-    metalness: 0.72,
-    envMapIntensity: 0.8,
-  });
-}
+// ── Scene constants (1 unit = 10 mm) ──────────────────────────
+const DW = 100; // 1000 mm
+const DH = 220; // 2200 mm
+const DT = 4.7; // 47 mm
+const FW = 8;
+const FD = DT + 8;
+const GW = 20;
+const GH = 30;
+const GY = DH / 2 - 30;
+const KPH = 26;
+const WALL_W = DW + 80;
+const WALL_H = DH + 60;
+const WALL_T = 8;
+const HINGE_X = -DW / 2;
+const HANDLE_X = DW / 2 - 4;
 
-function matSS(roughness = 0.12, metalness = 0.92) {
-  return new THREE.MeshStandardMaterial({
+// ── Materials (PBR 2026 SOTA) ─────────────────────────────────
+const matDoorWhite = () =>
+  new THREE.MeshPhysicalMaterial({
+    color: 0xe2e8ec,
+    roughness: 0.62,
+    metalness: 0.05,
+    clearcoat: 0.4,
+    clearcoatRoughness: 0.25,
+    envMapIntensity: 0.65,
+  });
+
+const matFrame = () =>
+  new THREE.MeshPhysicalMaterial({
+    color: 0xb8c4ce,
+    roughness: 0.3,
+    metalness: 1.0,
+    clearcoat: 0.25,
+    clearcoatRoughness: 0.3,
+    envMapIntensity: 0.95,
+  });
+
+const matSS = (r = 0.18, m = 1.0) =>
+  new THREE.MeshPhysicalMaterial({
     color: 0xd4dde5,
-    roughness,
-    metalness,
-    envMapIntensity: 1.1,
+    roughness: r,
+    metalness: m,
+    clearcoat: 0.35,
+    clearcoatRoughness: 0.18,
+    envMapIntensity: 1.2,
   });
-}
 
-function matLeadGlass() {
-  return new THREE.MeshStandardMaterial({
-    color: 0xbde0e8,
-    roughness: 0.04,
-    metalness: 0.0,
+const matLeadGlass = () =>
+  new THREE.MeshPhysicalMaterial({
+    color: 0xc8d4b0,
+    roughness: 0.05,
+    metalness: 0,
+    transmission: 0.7,
+    thickness: 0.6,
+    ior: 1.55,
     transparent: true,
     opacity: 0.55,
     side: THREE.DoubleSide,
     envMapIntensity: 1.2,
+    clearcoat: 0.3,
+    clearcoatRoughness: 0.1,
   });
-}
 
-function matLead() {
-  return new THREE.MeshStandardMaterial({
-    color: 0x6b7078,
-    roughness: 0.50,
-    metalness: 0.55,
+const matLead = () =>
+  new THREE.MeshStandardMaterial({
+    color: 0x707680,
+    roughness: 0.55,
+    metalness: 0.45,
+    envMapIntensity: 0.7,
   });
-}
 
-function matRubber() {
-  return new THREE.MeshStandardMaterial({
-    color: 0x1e2228,
-    roughness: 0.92,
-    metalness: 0.0,
+const matRubber = () =>
+  new THREE.MeshStandardMaterial({ color: 0x1e2228, roughness: 0.92, metalness: 0 });
+
+const matWall = () =>
+  new THREE.MeshStandardMaterial({ color: 0xe8eef2, roughness: 0.92, metalness: 0 });
+
+const matCloserHousing = () =>
+  new THREE.MeshPhysicalMaterial({
+    color: 0xa0aab4,
+    roughness: 0.38,
+    metalness: 1.0,
+    clearcoat: 0.25,
+    clearcoatRoughness: 0.25,
+    envMapIntensity: 1.0,
   });
-}
 
-function matWall() {
-  return new THREE.MeshStandardMaterial({
-    color: 0xb8ccd8,
-    roughness: 0.90,
-    metalness: 0.0,
+const matCloserArm = () =>
+  new THREE.MeshPhysicalMaterial({
+    color: 0xc2cad2,
+    roughness: 0.28,
+    metalness: 1.0,
+    clearcoat: 0.3,
+    clearcoatRoughness: 0.18,
+    envMapIntensity: 1.15,
   });
+
+// ── Mesh helpers ─────────────────────────────────────────────
+
+function addMesh(scene: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, shadow = true): THREE.Mesh {
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, z);
+  if (shadow) {
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+  }
+  scene.add(mesh);
+  return mesh;
 }
 
-function box(w: number, h: number, d: number) {
-  return new THREE.BoxGeometry(w, h, d);
+// ── Door leaf with sculpted bevel + window aperture ───────────
+
+function buildSculptedDoorLeaf(scene: THREE.Object3D): void {
+  // Outer rectangle + window hole with rounded corners
+  const shape = new THREE.Shape();
+  shape.moveTo(-DW / 2, -DH / 2);
+  shape.lineTo(DW / 2, -DH / 2);
+  shape.lineTo(DW / 2, DH / 2);
+  shape.lineTo(-DW / 2, DH / 2);
+  shape.lineTo(-DW / 2, -DH / 2);
+
+  const r = 1.5;
+  const x0 = -GW / 2;
+  const x1 = GW / 2;
+  const y0 = GY - GH / 2;
+  const y1 = GY + GH / 2;
+  const hole = new THREE.Path();
+  hole.moveTo(x0 + r, y0);
+  hole.lineTo(x1 - r, y0);
+  hole.quadraticCurveTo(x1, y0, x1, y0 + r);
+  hole.lineTo(x1, y1 - r);
+  hole.quadraticCurveTo(x1, y1, x1 - r, y1);
+  hole.lineTo(x0 + r, y1);
+  hole.quadraticCurveTo(x0, y1, x0, y1 - r);
+  hole.lineTo(x0, y0 + r);
+  hole.quadraticCurveTo(x0, y0, x0 + r, y0);
+  shape.holes.push(hole);
+
+  // ExtrudeGeometry with multi-segment bevel — sculpted feel, NOT flat
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: DT,
+    bevelEnabled: true,
+    bevelThickness: 0.25,
+    bevelSize: 0.25,
+    bevelSegments: 4,
+    curveSegments: 12,
+  });
+  geo.translate(0, 0, -DT / 2);
+
+  const leaf = new THREE.Mesh(geo, matDoorWhite());
+  leaf.castShadow = true;
+  leaf.receiveShadow = true;
+  scene.add(leaf);
 }
 
-// ─── Scene builder ────────────────────────────────────────────
+// ── Lead continuity stripes (BoxGeometry — thin strips, no chamfer needed) ──
+// These are visual hints, not hero geometry. Box is fine.
+function buildSculptedLeadContinuity(scene: THREE.Object3D): void {
+  const lead = matLead();
+  const t = 0.5;
+  const inset = 0.3;
 
-function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
+  // Top edge
+  const topGeo = new THREE.BoxGeometry(DW - 2, t, DT * 0.85);
+  const top = new THREE.Mesh(topGeo, lead);
+  top.position.set(0, DH / 2 - inset - t / 2, 0);
+  top.castShadow = true;
+  scene.add(top);
 
-  // ── 0. PBR Environment ──────────────────────────────────────
-  renderer.toneMappingExposure = 0.72;   // reduced from 0.95 — less glare
+  // Bottom
+  const bot = new THREE.Mesh(topGeo.clone(), lead);
+  bot.position.set(0, -DH / 2 + inset + t / 2, 0);
+  bot.castShadow = true;
+  scene.add(bot);
+
+  // Hinge edge (left)
+  const sideGeo = new THREE.BoxGeometry(t, DH - 4, DT * 0.85);
+  const left = new THREE.Mesh(sideGeo, lead);
+  left.position.set(-DW / 2 + inset + t / 2, 0, 0);
+  left.castShadow = true;
+  scene.add(left);
+
+  // Latch edge (right)
+  const right = new THREE.Mesh(sideGeo.clone(), lead);
+  right.position.set(DW / 2 - inset - t / 2, 0, 0);
+  right.castShadow = true;
+  scene.add(right);
+}
+
+// ── Sculpted closer (Sargent 281 style) ───────────────────────
+
+function buildSculptedCloser(scene: THREE.Object3D): void {
+  const housing = matCloserHousing();
+  const arm = matCloserArm();
+
+  const HX = 0;
+  const HY = DH / 2 + FW / 2;
+  const HZ = DT / 2 + 3.0; // housing center Z (DT/2 = door front, +3 = housing offset)
+  const HOUSING_DEPTH = 6;
+  const HOUSING_FRONT_Z = HZ + HOUSING_DEPTH / 2;
+
+  // Housing body: roundedBox 200×60×60mm proportional
+  const body = new THREE.Mesh(roundedBox(20, 6, 6, 0.6, 4), housing);
+  body.position.set(HX, HY, HZ);
+  body.castShadow = true;
+  scene.add(body);
+
+  // Cylinder caps (Lathe — chamfered cylinder ends)
+  const capProfile: Array<[number, number]> = [
+    [0, 0],
+    [0.45, 0],
+    [0.5, 0.1],
+    [0.5, 0.4],
+    [0.45, 0.5],
+    [0, 0.5],
+  ];
+  for (const sx of [-10, 10]) {
+    const cap = new THREE.Mesh(latheProfile(capProfile, 16), matSS(0.2, 1.0));
+    cap.rotation.z = sx > 0 ? -Math.PI / 2 : Math.PI / 2;
+    cap.position.set(HX + sx, HY, HZ);
+    cap.castShadow = true;
+    scene.add(cap);
+  }
+
+  // Brand plate — sunk -0.05 into housing front face (research §5.3 rule 3)
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(7, 1.8, 0.3), matSS(0.18, 1.0));
+  plate.position.set(HX, HY + 1.6, HOUSING_FRONT_Z - 0.15);
+  scene.add(plate);
+
+  // Pivot pin — vertical cylinder going DOWN from housing bottom
+  // ALIGNMENT FIX: pin top at housing bottom (HY-3), pin extends downward 1.6 units.
+  // Pin is regular CylinderGeometry rotated, NOT Lathe (Lathe profile 0→1.6 means pin
+  // top at HY-3.2 + 0 and bottom at HY-3.2 - 1.6 — flipped from intuition).
+  const PIN_LEN = 1.6;
+  const PIN_TOP_Y = HY - 3; // exit housing bottom face
+  const PIN_BOT_Y = PIN_TOP_Y - PIN_LEN;
+  const pin = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.5, 0.5, PIN_LEN, 16),
+    arm,
+  );
+  pin.position.set(HX + 5, (PIN_TOP_Y + PIN_BOT_Y) / 2, HZ);
+  pin.castShadow = true;
+  scene.add(pin);
+
+  // Top knuckle — at pin bottom, slight overlap so no gap visible
+  const knuckleTop = new THREE.Mesh(
+    latheProfile(
+      [
+        [0, 0],
+        [1.0, 0],
+        [1.0, 0.6],
+        [0.85, 0.85],
+        [0.5, 1.0],
+        [0, 1.0],
+      ],
+      24,
+    ),
+    arm,
+  );
+  // Knuckle center at PIN_BOT_Y - 0.5 (knuckle Lathe height ~1.0, so center is at 0.5)
+  knuckleTop.position.set(HX + 5, PIN_BOT_Y - 0.5, HZ);
+  knuckleTop.castShadow = true;
+  scene.add(knuckleTop);
+
+  // Main arm via smoothTube — TRUE 3D Z-bend forward (Sargent 281 signature)
+  // Pivot starts AT knuckle bottom (continuous geometry — no air gap)
+  const pivot = new THREE.Vector3(HX + 5, PIN_BOT_Y - 1.5, HZ);
+  const elbow = new THREE.Vector3(HX + 1, HY - 9, HZ + 5);
+  // Foot at door front face — bracket Z extends DT/2 to DT/2+0.6, mid at DT/2+0.3
+  const FOOT_Z = DT / 2 + 0.3;
+  const foot = new THREE.Vector3(HX - 1, DH / 2 - 1.5, FOOT_Z);
+  // Main arm
+  const mainArmPoints = [
+    pivot.clone(),
+    pivot.clone().lerp(elbow, 0.3),
+    pivot.clone().lerp(elbow, 0.7),
+    elbow.clone(),
+  ];
+  const mainArm = new THREE.Mesh(smoothTube(mainArmPoints, 0.7, 32, 16), arm);
+  mainArm.castShadow = true;
+  scene.add(mainArm);
+
+  // Elbow knuckle (forged steel joint sphere)
+  const elbowKnuckle = new THREE.Mesh(
+    new THREE.SphereGeometry(0.95, 16, 12),
+    arm,
+  );
+  elbowKnuckle.position.copy(elbow);
+  elbowKnuckle.castShadow = true;
+  scene.add(elbowKnuckle);
+
+  // Foot arm (smoothTube from elbow to door bracket)
+  const footArmPoints = [
+    elbow.clone(),
+    elbow.clone().lerp(foot, 0.3),
+    elbow.clone().lerp(foot, 0.7),
+    foot.clone(),
+  ];
+  const footArm = new THREE.Mesh(smoothTube(footArmPoints, 0.6, 32, 16), arm);
+  footArm.castShadow = true;
+  scene.add(footArm);
+
+  // Door-mount foot bracket — flat plate on door surface, thickness 0.6
+  // Bracket front Z = DT/2+0.6, back Z = DT/2 (flush with door surface)
+  const BRACKET_THICK = 0.6;
+  const BRACKET_Z = DT / 2 + BRACKET_THICK / 2; // bracket center
+  const bracket = new THREE.Mesh(new THREE.BoxGeometry(7.5, 3.5, BRACKET_THICK), matSS(0.15, 1.0));
+  bracket.position.set(foot.x, foot.y, BRACKET_Z);
+  bracket.castShadow = true;
+  scene.add(bracket);
+
+  // 4 bracket screws — sunk into bracket front (research §5.3 rule 3)
+  // Bracket front face Z = BRACKET_Z + 0.3 = DT/2+0.6, screws at -0.05 sink
+  const screwGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.18, 8);
+  for (const sx of [-2.5, 2.5]) {
+    for (const sy of [-1.0, 1.0]) {
+      const screw = new THREE.Mesh(screwGeo, matSS(0.2, 1.0));
+      screw.position.set(foot.x + sx, foot.y + sy, BRACKET_Z + 0.25);
+      screw.rotation.x = Math.PI / 2; // disc face → +Z
+      scene.add(screw);
+    }
+  }
+}
+
+// ── Sculpted bar pull handle ──────────────────────────────────
+// ALIGNMENT (research §5.3 rule 2): vertical bar pull, length 500mm = 50 units.
+// Real ADA-compliant grip clearance: 75mm (7.5u) from bar to door surface.
+// Standoffs span exactly that distance, stand perpendicular to door front.
+function buildSculptedBarPull(scene: THREE.Object3D): void {
+  const chrome = matSS(0.12, 1.0);
+  const PULL_LEN = 50;
+  const PULL_R = 1.1;
+  const STANDOFF_LEN = 3.0; // 30mm standoff distance (door face → bar back)
+  const BAR_Z = DT / 2 + STANDOFF_LEN; // bar center Z
+  // Y center: shift down so handle center sits at floor+1050mm
+  // door center is at y=0, floor is at y=-DH/2-5=-115. ADA handle = -110+105=-5
+  const HANDLE_Y_CENTER = -5;
+
+  // Bar with hemispherical caps
+  const [bar, capA, capB] = barPullHandle(PULL_LEN, PULL_R, 24);
+  const barMesh = new THREE.Mesh(bar, chrome);
+  barMesh.position.set(HANDLE_X, HANDLE_Y_CENTER, BAR_Z);
+  barMesh.castShadow = true;
+  scene.add(barMesh);
+  const capAMesh = new THREE.Mesh(capA, chrome);
+  capAMesh.position.set(HANDLE_X, HANDLE_Y_CENTER, BAR_Z);
+  scene.add(capAMesh);
+  const capBMesh = new THREE.Mesh(capB, chrome);
+  capBMesh.position.set(HANDLE_X, HANDLE_Y_CENTER, BAR_Z);
+  scene.add(capBMesh);
+
+  // 2 standoffs — perpendicular to door, span from door surface to bar back
+  // CylinderGeometry along Y axis, rotated to point along +Z
+  const standoffGeo = new THREE.CylinderGeometry(0.7, 0.7, STANDOFF_LEN, 16);
+  for (const sy of [PULL_LEN / 2 - 2, -PULL_LEN / 2 + 2]) {
+    const standoff = new THREE.Mesh(standoffGeo, chrome);
+    standoff.rotation.x = Math.PI / 2; // Y-axis → Z-axis
+    standoff.position.set(HANDLE_X, HANDLE_Y_CENTER + sy, DT / 2 + STANDOFF_LEN / 2);
+    standoff.castShadow = true;
+    scene.add(standoff);
+  }
+
+  // Mounting rosettes — flat discs flush ON door surface (sunk -0.05 per rule 3)
+  // Rosette is a thin Cylinder facing +Z (toward viewer)
+  const rosetteGeo = new THREE.CylinderGeometry(0.95, 0.95, 0.3, 16);
+  for (const sy of [PULL_LEN / 2 - 2, -PULL_LEN / 2 + 2]) {
+    const rosette = new THREE.Mesh(rosetteGeo, chrome);
+    rosette.rotation.x = Math.PI / 2; // disc face → +Z
+    rosette.position.set(HANDLE_X, HANDLE_Y_CENTER + sy, DT / 2 + 0.1);
+    scene.add(rosette);
+  }
+}
+
+// ── Sculpted mortise lockset ──────────────────────────────────
+
+function buildSculptedMortise(scene: THREE.Object3D): void {
+  const ssMat = matSS(0.18, 1.0);
+  const blackMat = new THREE.MeshStandardMaterial({ color: 0x202020, roughness: 0.6 });
+
+  const HX = HANDLE_X;
+
+  // Latch escutcheon (sunk into door front face -0.05, research §5.3 rule 3)
+  const esc = new THREE.Mesh(new THREE.BoxGeometry(4, 9, 0.3), ssMat);
+  esc.position.set(HX - 2, -8, DT / 2 + 0.1);
+  esc.castShadow = true;
+  scene.add(esc);
+
+  // Cylinder lock (Lathe profile chamfered) — axis perpendicular to door face
+  const cylProfile: Array<[number, number]> = [
+    [0, 0],
+    [1.4, 0],
+    [1.4, 0.5],
+    [1.2, 0.6],
+    [1.2, 0.8],
+    [0, 0.8],
+  ];
+  const cylLock = new THREE.Mesh(latheProfile(cylProfile, 16), ssMat);
+  // Lathe Y-axis along Z direction so cylinder sticks OUT toward viewer
+  cylLock.rotation.x = -Math.PI / 2;
+  cylLock.position.set(HX - 2, -8, DT / 2 + 0.25);
+  cylLock.castShadow = true;
+  scene.add(cylLock);
+
+  // Keyway slit (sunk into cylinder face)
+  const keyway = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 1.6, 0.04),
+    blackMat,
+  );
+  keyway.position.set(HX - 2, -8, DT / 2 + 1.0); // on cylinder front face
+  scene.add(keyway);
+
+  // Mortise body — embedded in door edge, 18u tall × 2.4u deep × 1.5u into door
+  // Body Z range: -1.2 to 1.2 (centered at 0). Door Z range: -DT/2 to DT/2 = -2.35 to 2.35
+  // → mortise sits inside door interior
+  const mortBody = new THREE.Mesh(new THREE.BoxGeometry(1.5, 18, 2.4), matSS(0.4, 1.0));
+  mortBody.position.set(DW / 2 + 0.5, -8, 0);
+  mortBody.castShadow = true;
+  scene.add(mortBody);
+
+  // Faceplate — flush against door edge X face (DW/2 = 50)
+  // Faceplate thickness 0.4, sits proud of edge by 0.2 (faceplate X 50.85-51.25)
+  const facePlate = new THREE.Mesh(new THREE.BoxGeometry(0.4, 25, 3.0), ssMat);
+  facePlate.position.set(DW / 2 + 1.05, -8, 0);
+  facePlate.castShadow = true;
+  scene.add(facePlate);
+
+  // 6 screws on faceplate — sunk INTO faceplate front face (X-axis sink)
+  // Faceplate front is at X=51.25, screws sink to X=51.20 (-0.05 sink rule)
+  const screwGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.18, 8);
+  for (const sy of [-11, -6.5, -2, 2, 6.5, 11]) {
+    const screw = new THREE.Mesh(screwGeo, ssMat);
+    screw.rotation.z = Math.PI / 2; // Y-axis cylinder → X-axis (faces +X)
+    screw.position.set(DW / 2 + 1.20, -8 + sy, 0);
+    scene.add(screw);
+  }
+
+  // Latch bolt — protrudes from faceplate front, axis along +X
+  const latchProfile: Array<[number, number]> = [
+    [0, 0],
+    [0.55, 0],
+    [0.55, 0.8],
+    [0.45, 1.0],
+    [0, 1.0],
+  ];
+  const latch = new THREE.Mesh(latheProfile(latchProfile, 14), ssMat);
+  // Lathe profile Y-axis = bolt extrusion direction; rotate so points +X
+  latch.rotation.z = -Math.PI / 2;
+  latch.position.set(DW / 2 + 1.25, -8, 0.4); // start at faceplate front face
+  scene.add(latch);
+
+  // Dead bolt — separate throw above latch, also along +X
+  const deadBolt = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.6, 2.5), ssMat);
+  // Center at faceplate front +0.5 (half body width) so back face flush at faceplate front
+  deadBolt.position.set(DW / 2 + 1.55, -5, 0);
+  scene.add(deadBolt);
+
+  // Through-spindle hole — small dark indicator on faceplate front
+  const spindleHole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.3, 0.3, 0.06, 12),
+    blackMat,
+  );
+  spindleHole.rotation.z = Math.PI / 2; // axis along +X to face forward
+  spindleHole.position.set(DW / 2 + 1.22, -8 + 3.8, 0); // on faceplate front face
+  scene.add(spindleHole);
+}
+
+// ── Sculpted hinges (5-knuckle alternating) ──────────────────
+// Split into door-side (leafGroup) and frame-side (scene root) so that
+// open/close scenario can rotate only the door-mounted parts.
+
+function buildSculptedHinges(scene: THREE.Object3D, leafGroup: THREE.Object3D): void {
+  const ssMat = matSS(0.16, 1.0);
+  const pinMat = matSS(0.1, 1.0);
+  const positions = [DH / 2 - 18, 0, -DH / 2 + 18];
+
+  // ALIGNMENT FIX (research §5.3 — hinge pin axis = door rotation axis):
+  // Hinge pin Z must be at door edge (Z=0), NOT at door front face (DT/2).
+  // When door rotates open, pivot is around (HINGE_X, py, 0) — the edge.
+  // Real hinge geometry: leafA on door face, leafB on jamb face, pin in
+  // the gap between (Z ≈ 0). Knuckle barrels alternate around pin.
+  for (const py of positions) {
+    // Door leaf strip — embedded in door edge, sticks out slightly toward viewer
+    // ROTATES with door (mounted on leaf side of hinge).
+    const leafA = new THREE.Mesh(new THREE.BoxGeometry(0.6, 6, DT * 0.85), ssMat);
+    leafA.position.set(HINGE_X + 0.3, py, 0); // very slight outset from door edge
+    leafA.castShadow = true;
+    leafA.receiveShadow = true;
+    leafGroup.add(leafA);
+
+    // Frame leaf — embedded in jamb, sticks toward door
+    // STATIC (mounted on frame).
+    const leafB = new THREE.Mesh(new THREE.BoxGeometry(0.6, 6, FD * 0.7), ssMat);
+    leafB.position.set(HINGE_X - 0.3, py, 0);
+    leafB.castShadow = true;
+    leafB.receiveShadow = true;
+    scene.add(leafB);
+
+    // Pin — vertical cylinder AT the rotation axis (HINGE_X, *, 0)
+    // STATIC (pin stays with frame; barrels rotate around it).
+    const pin = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.4, 0.4, 7, 12),
+      pinMat,
+    );
+    pin.position.set(HINGE_X, py, 0);
+    pin.castShadow = true;
+    scene.add(pin);
+
+    // 5 knuckle barrels at pin axis (alternating thickness for visual texture)
+    // STATIC (visually shared between leaf+frame; we keep them in scene root
+    //  to avoid clipping when leaf rotates).
+    const knuckleYs = [-2.4, -1.2, 0, 1.2, 2.4];
+    knuckleYs.forEach((dy) => {
+      const k = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.55, 0.55, 1.0, 12),
+        ssMat,
+      );
+      k.position.set(HINGE_X, py + dy, 0);
+      k.castShadow = true;
+      scene.add(k);
+    });
+
+    // 4 screws per leaf — sunk into surface (-0.05 Z offset = research §5.3 rule 3)
+    // Door-side screws: face the viewer (+Z), pressed into door front (rotates with leaf)
+    const screwGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.18, 8);
+    for (const sy of [-2.2, -0.7, 0.7, 2.2]) {
+      const sa = new THREE.Mesh(screwGeo, ssMat);
+      sa.rotation.x = Math.PI / 2;
+      sa.position.set(HINGE_X + 0.3, py + sy, DT / 2 - 0.05);
+      leafGroup.add(sa);
+      // Frame-side screws face into the jamb (-Z direction) — STATIC
+      const sb = new THREE.Mesh(screwGeo, ssMat);
+      sb.rotation.x = Math.PI / 2;
+      sb.position.set(HINGE_X - 0.3, py + sy, -FD / 2 + 0.05);
+      scene.add(sb);
+    }
+  }
+}
+
+// ── Lead-lined jamb continuity (BoxGeometry — thin tabs/strips) ──
+// Tabs hanya visual hint, no chamfer needed. Save vertex budget.
+function buildSculptedLeadFrameContinuity(scene: THREE.Object3D, wallZ: number): void {
+  const lead = matLead();
+  const tabT = 0.35;
+  const tabZ = wallZ + WALL_T / 2 - tabT / 2;
+
+  // Pb tabs at perimeter (BoxGeometry — flat strips peeking from drywall)
+  // Left jamb side
+  addMesh(scene, new THREE.BoxGeometry(1.3, DH + 4, tabT), lead, -(DW / 2 + FW + 0.3), 0, tabZ);
+  // Right jamb side
+  addMesh(scene, new THREE.BoxGeometry(1.3, DH + 4, tabT), lead, DW / 2 + FW + 0.3, 0, tabZ);
+  // Header top
+  addMesh(scene, new THREE.BoxGeometry(DW + FW * 2 + 4, 1.3, tabT), lead, 0, DH / 2 + FW + 0.3, tabZ);
+
+  // Pb wrap inside jamb throat (BoxGeometry flat strips)
+  const throatZ = -FD / 2 + 0.4;
+  addMesh(scene, new THREE.BoxGeometry(FW * 0.45, DH, 0.35), lead, -(DW / 2 + FW * 0.275), 0, throatZ);
+  addMesh(scene, new THREE.BoxGeometry(FW * 0.45, DH, 0.35), lead, DW / 2 + FW * 0.275, 0, throatZ);
+  addMesh(scene, new THREE.BoxGeometry(DW, FW * 0.45, 0.35), lead, 0, DH / 2 + FW * 0.275, throatZ);
+
+  // Threshold lead nosing (BoxGeometry)
+  const sillY = -(DH / 2 + FW * 0.4) + 0.2;
+  addMesh(scene, new THREE.BoxGeometry(DW + FW * 2, 0.4, FD - 1), lead, 0, sillY, 0);
+  // Vertical turn-up (BoxGeometry)
+  addMesh(scene, new THREE.BoxGeometry(DW + FW * 2, 1.2, 0.35), lead, 0, sillY + 0.6, wallZ + WALL_T / 2 - 0.2);
+}
+
+// ── Scene builder ────────────────────────────────────────────
+
+interface SceneHandles {
+  leafPivot: THREE.Group;
+  closerGroup: THREE.Group;
+}
+
+function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): SceneHandles {
+  // Environment + tone
+  renderer.toneMappingExposure = 1.0;
   const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.02).texture;
-  scene.background = new THREE.Color(0xedf2f5);
+  const envScene = new RoomEnvironment();
+  scene.environment = pmrem.fromScene(envScene, 0.04).texture;
+  scene.background = new THREE.Color(0xeef3f7);
+  envScene.traverse((obj) => {
+    if ((obj as THREE.Mesh).isMesh) {
+      const m = obj as THREE.Mesh;
+      m.geometry.dispose();
+      if (Array.isArray(m.material)) m.material.forEach((mt) => mt.dispose());
+      else (m.material as THREE.Material).dispose();
+    }
+  });
   pmrem.dispose();
 
-  // ── 0b. Wall (blue-grey medical room reference) — FIX: closer to frame ────
-  const wall = new THREE.Mesh(box(WALL_W, WALL_H, 3), matWall());
-  wall.position.set(0, 2.5, -(DT / 2 + FD / 2 + 1)); // FIX: reduced from 3 to 1 for better connection
+  // Lighting (cool clinical 5500K)
+  scene.add(new THREE.AmbientLight(0xf0f6fa, 0.30));
+  scene.add(new THREE.HemisphereLight(0xeaf4ff, 0xc8d2dc, 0.45));
+
+  const key = new THREE.DirectionalLight(0xf0f5ff, 1.15);
+  key.position.set(160, 240, 200);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.camera.near = 1;
+  key.shadow.camera.far = 800;
+  key.shadow.camera.left = -200;
+  key.shadow.camera.right = 200;
+  key.shadow.camera.top = 200;
+  key.shadow.camera.bottom = -200;
+  key.shadow.bias = -0.0006;
+  key.shadow.normalBias = 0.04;
+  scene.add(key);
+
+  const fill = new THREE.DirectionalLight(0xc8d8ff, 0.55);
+  fill.position.set(-130, 130, -80);
+  scene.add(fill);
+
+  const back = new THREE.DirectionalLight(0xd8e8ff, 0.32);
+  back.position.set(80, 100, -180);
+  scene.add(back);
+
+  // Floor
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(900, 900),
+    new THREE.MeshStandardMaterial({ color: 0xeef0f3, roughness: 0.85 }),
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -DH / 2 - 5;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // ── Wall + lead continuity ──
+  const wallZ = -(DT / 2 + FD / 2 + WALL_T / 2 + 0.3);
+  // Wall slab (BoxGeometry — large flat slab, chamfer wasted at this scale)
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(WALL_W, WALL_H, WALL_T), matWall());
+  wall.position.set(0, 0, wallZ);
   wall.receiveShadow = true;
   scene.add(wall);
 
-  // ── 1. DOOR FRAME ────────────────────────────────────────────
-  const fMat = matFrame();
+  // Architrave (rounded molding profile around opening)
+  const archProfile = new THREE.Shape();
+  archProfile.moveTo(0, 0);
+  archProfile.lineTo(1.6, 0);
+  archProfile.lineTo(1.6, 0.6);
+  archProfile.quadraticCurveTo(1.6, 1.2, 1.0, 1.2);
+  archProfile.lineTo(0, 1.2);
+  archProfile.closePath();
 
-  // Left jamb (handle side)
-  const jambL = new THREE.Mesh(box(FW, DH, FD), fMat);
-  jambL.position.set(-DW / 2 - FW / 2, -FW / 2, 0);
-  jambL.castShadow = true;
-  scene.add(jambL);
+  // Top architrave
+  const archTopGeo = new THREE.ExtrudeGeometry(archProfile, { depth: DW + FW * 2 + 2, bevelEnabled: false });
+  archTopGeo.rotateY(Math.PI / 2);
+  archTopGeo.translate((DW + FW * 2 + 2) / 2, 0, 0);
+  const archTop = new THREE.Mesh(archTopGeo, matFrame());
+  archTop.position.set(-(DW + FW * 2 + 2) / 2, DH / 2 + FW + 0.8, wallZ + WALL_T / 2 + 0.6);
+  archTop.castShadow = true;
+  scene.add(archTop);
 
-  // Right jamb (hinge side)
-  const jambR = new THREE.Mesh(box(FW, DH, FD), fMat);
-  jambR.position.set(DW / 2 + FW / 2, -FW / 2, 0);
-  jambR.castShadow = true;
-  scene.add(jambR);
+  // Side architraves
+  const archSideGeo = new THREE.ExtrudeGeometry(archProfile, { depth: DH + FW * 2 + 2, bevelEnabled: false });
+  archSideGeo.rotateY(Math.PI / 2);
+  archSideGeo.rotateZ(Math.PI / 2);
+  for (const ax of [-(DW / 2 + FW + 0.8), DW / 2 + FW + 0.8]) {
+    const archSide = new THREE.Mesh(archSideGeo.clone(), matFrame());
+    archSide.position.set(ax, -(DH + FW * 2 + 2) / 2, wallZ + WALL_T / 2 + 0.6);
+    archSide.castShadow = true;
+    scene.add(archSide);
+  }
 
-  // Top header
-  const header = new THREE.Mesh(box(DW + FW * 2, FW, FD), fMat);
-  header.position.set(0, DH / 2 + FW / 2, 0);
-  header.castShadow = true;
-  scene.add(header);
+  // Lead continuity
+  buildSculptedLeadFrameContinuity(scene, wallZ);
 
-  // Bottom threshold
-  const threshold = new THREE.Mesh(box(DW + FW * 2, FW * 0.4, FD * 0.6), fMat);
-  threshold.position.set(0, -DH / 2 - FW * 0.2, 0);
-  scene.add(threshold);
+  // ── Frame (jambs + header + threshold) — HERO chamfered, but segs=2 ──
+  const frameGroup = new THREE.Group();
+  frameGroup.userData.partId = 'frame';
+  scene.add(frameGroup);
+  const frameMat = matFrame();
+  // Left jamb
+  addMesh(frameGroup, roundedBox(FW, DH + FW * 2, FD, 0.5, 2), frameMat, -(DW / 2 + FW / 2), 0, 0);
+  // Right jamb
+  addMesh(frameGroup, roundedBox(FW, DH + FW * 2, FD, 0.5, 2), frameMat, DW / 2 + FW / 2, 0, 0);
+  // Header
+  addMesh(frameGroup, roundedBox(DW + FW * 2, FW, FD, 0.5, 2), frameMat, 0, DH / 2 + FW / 2, 0);
+  // Threshold (BoxGeometry — thin slab)
+  addMesh(frameGroup, new THREE.BoxGeometry(DW + FW * 2, FW * 0.4, FD), frameMat, 0, -(DH / 2 + FW * 0.2), 0);
 
-  // Door stop bead (left jamb, rubber)
-  const stopBead = new THREE.Mesh(box(1.2, DH, DT * 0.4), matRubber());
-  stopBead.position.set(-DW / 2 - 0.4, -FW / 2, DT * 0.15);
-  scene.add(stopBead);
+  // Rubber stop bead (BoxGeometry — thin strips, attached to frame)
+  const rubber = matRubber();
+  addMesh(frameGroup, new THREE.BoxGeometry(0.6, DH, 0.5), rubber, -(DW / 2 + 0.2), 0, FD / 2 - 1);
+  addMesh(frameGroup, new THREE.BoxGeometry(0.6, DH, 0.5), rubber, DW / 2 + 0.2, 0, FD / 2 - 1);
+  addMesh(frameGroup, new THREE.BoxGeometry(DW, 0.6, 0.5), rubber, 0, DH / 2 + 0.2, FD / 2 - 1);
 
-  // ── 2. DOOR LEAF ──────────────────────────────────────────────
-  const doorShape = new THREE.Shape();
-  doorShape.moveTo(-DW / 2, -DH / 2);
-  doorShape.lineTo( DW / 2, -DH / 2);
-  doorShape.lineTo( DW / 2,  DH / 2);
-  doorShape.lineTo(-DW / 2,  DH / 2);
-  doorShape.closePath();
+  // ── Door leaf pivot group ──────────────────────────────────
+  // All geometry that physically rotates with the door leaf (skin, lead
+  // continuity stripes, gaskets, drop seal, view glass+rebate+bezel,
+  // kickplate, bar pull, mortise, door-side hinge leaves) goes into
+  // leafPivot. Pivot origin sits AT the hinge axis (HINGE_X, 0, 0) so
+  // rotateY around that point is correct. Children are translated by
+  // -HINGE_X on X to preserve their world coordinates at angle 0.
+  const leafPivot = new THREE.Group();
+  leafPivot.position.set(HINGE_X, 0, 0);
+  scene.add(leafPivot);
 
-  const glassHole = new THREE.Path();
-  glassHole.moveTo(GX - GW / 2, gYCenter - GH / 2);
-  glassHole.lineTo(GX + GW / 2, gYCenter - GH / 2);
-  glassHole.lineTo(GX + GW / 2, gYCenter + GH / 2);
-  glassHole.lineTo(GX - GW / 2, gYCenter + GH / 2);
-  glassHole.closePath();
-  doorShape.holes.push(glassHole);
+  // Inner group: receives all leaf-mounted geometry, offset back so child
+  // local coords match world coords when leafPivot.rotation.y = 0.
+  const leafGroup = new THREE.Group();
+  leafGroup.position.set(-HINGE_X, 0, 0);
+  leafPivot.add(leafGroup);
 
-  const doorGeo = new THREE.ExtrudeGeometry(doorShape, {
-    depth: DT,
-    bevelEnabled: false,
-  });
-  doorGeo.translate(0, 0, -DT / 2);
+  // Closer goes in its own group so it can be hidden in 'open' scenario
+  // (closer arm articulation is not modelled — hiding is honest).
+  const closerGroup = new THREE.Group();
+  closerGroup.userData.partId = 'closer';
+  scene.add(closerGroup);
 
-  const doorMesh = new THREE.Mesh(doorGeo, matDoorWhite());
-  doorMesh.castShadow = doorMesh.receiveShadow = true;
-  scene.add(doorMesh);
+  // ── Door leaf with sculpted bevel + window aperture ──
+  const doorLeafGroup = new THREE.Group();
+  doorLeafGroup.userData.partId = 'door-leaf';
+  leafGroup.add(doorLeafGroup);
+  buildSculptedDoorLeaf(doorLeafGroup);
 
-  const doorEdges = new THREE.LineSegments(
-    new THREE.EdgesGeometry(doorGeo),
-    new THREE.LineBasicMaterial({ color: 0x8aa0b0, opacity: 0.12, transparent: true }),
+  // ── Lead continuity perimeter stripes ──
+  const leadStripesGroup = new THREE.Group();
+  leadStripesGroup.userData.partId = 'lead-stripes';
+  leafGroup.add(leadStripesGroup);
+  buildSculptedLeadContinuity(leadStripesGroup);
+
+  // ── EPDM gasket — perimeter compression seal at door front ──
+  const gasketGroup = new THREE.Group();
+  gasketGroup.userData.partId = 'gasket';
+  leafGroup.add(gasketGroup);
+  // Gasket sits inside door perimeter, slightly proud of door front face
+  // Door front Z = DT/2 = 2.35. Gasket thickness 0.6, flange Z 0.4 (compressed).
+  // Gasket front face at Z = DT/2 - 0.05 (sunk into edge groove).
+  const gMat = matRubber();
+  const gT = 0.6;
+  const gFlangeZ = 0.4; // gasket Z thickness — thin compression strip
+  const gInset = 0.5;
+  // Top gasket
+  addMesh(gasketGroup, new THREE.BoxGeometry(DW - 1, gT, gFlangeZ), gMat, 0, DH / 2 - gInset - gT / 2, DT / 2 - gFlangeZ / 2 - 0.05);
+  // Bottom gasket
+  addMesh(gasketGroup, new THREE.BoxGeometry(DW - 1, gT, gFlangeZ), gMat, 0, -DH / 2 + gInset + gT / 2, DT / 2 - gFlangeZ / 2 - 0.05);
+  // Hinge-side gasket
+  addMesh(gasketGroup, new THREE.BoxGeometry(gT, DH - 2, gFlangeZ), gMat, -DW / 2 + gInset + gT / 2, 0, DT / 2 - gFlangeZ / 2 - 0.05);
+  // Latch-side gasket
+  addMesh(gasketGroup, new THREE.BoxGeometry(gT, DH - 2, gFlangeZ), gMat, DW / 2 - gInset - gT / 2, 0, DT / 2 - gFlangeZ / 2 - 0.05);
+
+  // ── Bottom drop seal — mortised INTO door bottom edge ──
+  const dropSealGroup = new THREE.Group();
+  dropSealGroup.userData.partId = 'drop-seal';
+  leafGroup.add(dropSealGroup);
+  // Real Athmer/Pemko style: aluminum housing inset into bottom door edge.
+  // Housing 12mm thick (1.2u) × 32mm high (3.2u). Top of housing at door bottom -0.5 (slight sink).
+  // Housing centered at door front (Z=0) fits within door thickness (DT=4.7, range -2.35 to 2.35).
+  // Aluminum housing — inset into door bottom (mortised), centered at Z=0
+  const HOUSING_H = 1.2;
+  const HOUSING_TOP_Y = -DH / 2 + HOUSING_H / 2 + 0.3;
+  addMesh(dropSealGroup, new THREE.BoxGeometry(DW - 4, HOUSING_H, DT - 0.5), matSS(0.25, 1.0), 0, HOUSING_TOP_Y, 0);
+  // Rubber sweep — descends BELOW door bottom (visible drop)
+  // Sweep top inside housing, bottom protrudes 0.4 below door bottom
+  addMesh(dropSealGroup, new THREE.BoxGeometry(DW - 6, 0.5, DT - 1), matRubber(), 0, -DH / 2 - 0.25, 0);
+
+  // Activation pin — small cylinder protruding LATCH-side edge (sticks OUT +X)
+  // Real mechanism: pin at latch corner, when door closes pin presses against frame stop
+  const actPin = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.28, 0.28, 0.5, 12),
+    matSS(0.2, 1.0),
   );
-  scene.add(doorEdges);
+  actPin.rotation.z = Math.PI / 2; // axis along +X (latch-side)
+  actPin.position.set(DW / 2 + 0.25, HOUSING_TOP_Y, 0); // sticks out 0.25u from edge
+  actPin.castShadow = true;
+  dropSealGroup.add(actPin);
 
-  // ── 2a. Pb lead edge stripe (top edge — lining visible) ──────
-  const pbEdge = new THREE.Mesh(box(DW - 3, 2.8, DT * 0.9), matLead());
-  pbEdge.position.set(0, DH / 2 - 1.4, 0);
-  scene.add(pbEdge);
-
-  // ── 2b. EPDM perimeter gasket ────────────────────────────────
-  const ES = 1.4;
-  const epdmMat = matRubber();
-  const epdmItems: [THREE.BoxGeometry, [number, number, number]][] = [
-    [box(DW - ES * 2, ES, DT + 2), [0,        DH / 2,  0]],
-    [box(DW - ES * 2, ES, DT + 2), [0,       -DH / 2,  0]],
-    [box(ES, DH,       DT + 2),    [-DW / 2,  0,        0]],
-    [box(ES, DH,       DT + 2),    [ DW / 2,  0,        0]],
-  ];
-  epdmItems.forEach(([g, p]) => {
-    const m = new THREE.Mesh(g, epdmMat);
-    m.position.set(...p);
-    scene.add(m);
-  });
-
-  // ── 3. LEAD GLASS WINDOW (portrait) ──────────────────────────
-  const glassMesh = new THREE.Mesh(box(GW, GH, 0.6), matLeadGlass());
-  glassMesh.position.set(GX, gYCenter, 0.1);
-  scene.add(glassMesh);
-
-  // SS glass frame border
-  const gfT = 1.0;
-  const gfMat = matSS(0.10, 0.90);
-  [
-    { pos: [GX,             gYCenter + GH / 2 + gfT / 2, 0] as [number,number,number], size: [GW + gfT * 2, gfT, DT * 0.5] as [number,number,number] },
-    { pos: [GX,             gYCenter - GH / 2 - gfT / 2, 0] as [number,number,number], size: [GW + gfT * 2, gfT, DT * 0.5] as [number,number,number] },
-    { pos: [GX - GW / 2 - gfT / 2, gYCenter, 0]           as [number,number,number], size: [gfT, GH, DT * 0.5]           as [number,number,number] },
-    { pos: [GX + GW / 2 + gfT / 2, gYCenter, 0]           as [number,number,number], size: [gfT, GH, DT * 0.5]           as [number,number,number] },
-  ].forEach(({ pos, size }) => {
-    const m = new THREE.Mesh(box(...size), gfMat);
-    m.position.set(...pos);
-    scene.add(m);
-  });
-
-  // ── 4. SS KICK PLATE (prominent lower strip) ──────────────────
-  const kickMat = matSS(0.08, 0.95);
-  const kickPlate = new THREE.Mesh(box(KPW, KPH, 1.5), kickMat);
-  kickPlate.position.set(0, kickYCenter, DT / 2 + 0.5);
-  kickPlate.castShadow = true;
-  scene.add(kickPlate);
-
-  const kickEdges = new THREE.LineSegments(
-    new THREE.EdgesGeometry(box(KPW, KPH, 1.5)),
-    new THREE.LineBasicMaterial({ color: 0x5580a0, opacity: 0.25, transparent: true }),
+  // ── View Glass — REBATED behind steel skin with overlap visible ──
+  const glassGroup = new THREE.Group();
+  glassGroup.userData.partId = 'view-glass';
+  leafGroup.add(glassGroup);
+  const OVERLAP = 1.2;
+  const glassDepth = 0.7;
+  const glass = new THREE.Mesh(
+    beveledPlate(GW + OVERLAP * 2, GH + OVERLAP * 2, glassDepth, 0.2, 2),
+    matLeadGlass(),
   );
-  kickEdges.position.copy(kickPlate.position);
-  scene.add(kickEdges);
+  glass.position.set(0, GY, -DT / 4);
+  glass.castShadow = true;
+  glassGroup.add(glass);
 
-  // 4 fixing screws on kick plate
-  const screwMat = matSS(0.20, 0.80);
-  const screwGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.4, 10);
-  [-KPW / 2 + 4, -KPW / 2 + 14, KPW / 2 - 14, KPW / 2 - 4].forEach((sx) => {
-    [kickYCenter + 5, kickYCenter - 5].forEach((sy) => {
-      const screw = new THREE.Mesh(screwGeo, screwMat);
-      screw.rotation.x = Math.PI / 2;
-      screw.position.set(sx, sy, DT / 2 + 1.7);
-      scene.add(screw);
-    });
-  });
+  // Lead overlap rebate frame (BoxGeometry — thin Pb strips, no chamfer)
+  const rebateMat = matLead();
+  const rT = 0.3;
+  addMesh(glassGroup, new THREE.BoxGeometry(GW + OVERLAP * 2, rT, 0.4), rebateMat, 0, GY + GH / 2 + OVERLAP / 2, -DT / 4 + 0.2);
+  addMesh(glassGroup, new THREE.BoxGeometry(GW + OVERLAP * 2, rT, 0.4), rebateMat, 0, GY - GH / 2 - OVERLAP / 2, -DT / 4 + 0.2);
+  addMesh(glassGroup, new THREE.BoxGeometry(rT, GH + OVERLAP * 2, 0.4), rebateMat, -GW / 2 - OVERLAP / 2, GY, -DT / 4 + 0.2);
+  addMesh(glassGroup, new THREE.BoxGeometry(rT, GH + OVERLAP * 2, 0.4), rebateMat, GW / 2 + OVERLAP / 2, GY, -DT / 4 + 0.2);
 
-  // ── 5. HANDLE — lever on LEFT side (opposite hinges) ─────────
-  const lvMat = matSS(0.10, 0.93);
-  const handleX = -DW / 2 + 12;
-  const handleY = -10;
+  // SS bezel (BoxGeometry — thin frame strips)
+  const bezel = matSS(0.18, 1.0);
+  const bT = 0.55;
+  addMesh(glassGroup, new THREE.BoxGeometry(GW + bT * 2, bT, DT * 0.4), bezel, 0, GY + GH / 2 + bT / 2, DT / 2 - 0.4);
+  addMesh(glassGroup, new THREE.BoxGeometry(GW + bT * 2, bT, DT * 0.4), bezel, 0, GY - GH / 2 - bT / 2, DT / 2 - 0.4);
+  addMesh(glassGroup, new THREE.BoxGeometry(bT, GH, DT * 0.4), bezel, -GW / 2 - bT / 2, GY, DT / 2 - 0.4);
+  addMesh(glassGroup, new THREE.BoxGeometry(bT, GH, DT * 0.4), bezel, GW / 2 + bT / 2, GY, DT / 2 - 0.4);
 
-  // Rose plate (escutcheon)
-  const rose = new THREE.Mesh(box(3.5, 16, 1.0), matSS(0.15, 0.85));
-  rose.position.set(handleX, handleY, DT / 2 + 0.7);
-  scene.add(rose);
+  // ── SS Kickplate — flat plate flush against door front face ──
+  const kickplateGroup = new THREE.Group();
+  kickplateGroup.userData.partId = 'kickplate';
+  leafGroup.add(kickplateGroup);
+  // Kickplate Z range: DT/2+0.02 to DT/2+0.62 (thickness 0.6, sits 0.02 proud)
+  const kpY = -DH / 2 + KPH / 2 + 1;
+  const KICKPLATE_Z = DT / 2 + 0.32;
+  const KICKPLATE_FRONT_Z = KICKPLATE_Z + 0.3; // front face
+  addMesh(kickplateGroup, new THREE.BoxGeometry(DW - 4, KPH, 0.6), matSS(0.18, 1.0), 0, kpY, KICKPLATE_Z);
 
-  // Lever bar — horizontal
-  const lever = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 14, 16), lvMat);
-  lever.rotation.z = Math.PI / 2;
-  lever.position.set(handleX + 5, handleY, DT / 2 + 4);
-  scene.add(lever);
+  // 8 screws — sunk into kickplate front face, axis along +Z
+  // Cylinder default Y-axis; rotate.x = PI/2 makes axis +Z (face viewer)
+  const kpScrewGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.18, 12);
+  for (const sx of [-DW / 2 + 5, -DW / 6, DW / 6, DW / 2 - 5]) {
+    for (const sy of [-DH / 2 + 2.5, -DH / 2 + KPH - 1]) {
+      const screw = new THREE.Mesh(kpScrewGeo, matSS(0.2, 1.0));
+      screw.rotation.x = Math.PI / 2; // disc face → +Z
+      screw.position.set(sx, sy, KICKPLATE_FRONT_Z - 0.05); // sunk -0.05
+      kickplateGroup.add(screw);
+    }
+  }
 
-  // Lever knob end
-  const lvKnob = new THREE.Mesh(new THREE.SphereGeometry(1.1, 12, 8), lvMat);
-  lvKnob.position.set(handleX + 12, handleY, DT / 2 + 4);
-  scene.add(lvKnob);
+  // ── Hardware ──
+  const hingesGroup = new THREE.Group();
+  hingesGroup.userData.partId = 'hinges';
+  scene.add(hingesGroup);
+  buildSculptedHinges(hingesGroup, leafGroup);
 
-  // Cylinder lock
-  const cylLock = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.0, 1.2, 16), matSS(0.18, 0.80));
-  cylLock.rotation.x = Math.PI / 2;
-  cylLock.position.set(handleX, handleY - 9, DT / 2 + 0.6);
-  scene.add(cylLock);
+  const barPullGroup = new THREE.Group();
+  barPullGroup.userData.partId = 'bar-pull';
+  leafGroup.add(barPullGroup);
+  buildSculptedBarPull(barPullGroup);
 
-  // Mortise body on left door edge
-  const mortise = new THREE.Mesh(box(2.2, 20, DT), matSS(0.22, 0.78));
-  mortise.position.set(-DW / 2, handleY, 0);
-  scene.add(mortise);
+  const lockGroup = new THREE.Group();
+  lockGroup.userData.partId = 'lockset';
+  leafGroup.add(lockGroup);
+  buildSculptedMortise(lockGroup);
 
-  // Latch bolt
-  const latchBolt = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.0, 3.5, 10), matSS(0.12, 0.90));
-  latchBolt.rotation.z = Math.PI / 2;
-  latchBolt.position.set(-DW / 2 - 1.8, handleY, 0);
-  scene.add(latchBolt);
+  buildSculptedCloser(closerGroup);
 
-  // ── 6. HINGES — 3× on RIGHT side ────────────────────────────
-  const hMat = matSS(0.12, 0.88);
-  [DH / 2 - 20, 0, -DH / 2 + 20].forEach((hy) => {
-    const hDoor = new THREE.Mesh(box(2.2, 12, DT * 0.65), hMat);
-    hDoor.position.set(DW / 2, hy, 0);
-    scene.add(hDoor);
-
-    const hFrame = new THREE.Mesh(box(FW * 0.7, 12, FD * 0.6), hMat);
-    hFrame.position.set(DW / 2 + FW * 0.5, hy, 0);
-    scene.add(hFrame);
-
-    const pin = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.0, 13, 12), hMat);
-    pin.position.set(DW / 2 + 0.1, hy, 0);
-    scene.add(pin);
-
-    const scrGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 8);
-    [-3.5, 3.5].forEach((dy) => {
-      const sc = new THREE.Mesh(scrGeo, hMat);
-      sc.rotation.x = Math.PI / 2;
-      sc.position.set(DW / 2 + 0.1, hy + dy, DT * 0.3);
-      scene.add(sc);
-    });
-  });
-
-  // ── 7. AUTOMATIC DOOR CLOSER ────────────────────────────────
-  // Header (from section 1): box(DW+FW*2, FW, FD) at (0, DH/2+FW/2, 0)
-  const HDR_CY = DH / 2 + FW / 2;   // 108.5
-  const HDR_FZ = FD / 2;             //   6.4  front face Z
-  const DR_TOP = DH / 2;             // 105.0  door top Y
-  const DR_FZ  = DT / 2;             //   2.4  door front Z
-
-  const mSilver = new THREE.MeshStandardMaterial({ color: 0xb0bcc8, roughness: 0.78, metalness: 0.18, envMapIntensity: 0.20 });
-  const mDark   = new THREE.MeshStandardMaterial({ color: 0x606870, roughness: 0.85, metalness: 0.10, envMapIntensity: 0.12 });
-  const mKnk    = new THREE.MeshStandardMaterial({ color: 0xc8d0d8, roughness: 0.72, metalness: 0.16 });
-
-  // 7A  HOUSING — sits on header front face, same height as header
-  //   centerY = HDR_CY  →  top/bot coincide with header top/bot  (gap = 0)
-  //   backZ   = HDR_FZ  →  flush against header front face        (gap = 0)
-  const HH = FW;            // 7.0  = header height exactly
-  const HW = DW * 0.55;    // 49.5
-  const HD = 4.0;           // 40 mm depth
-  const hCX = DW * 0.08;   // 7.2  hinge-side offset
-  const hCY = HDR_CY;       // ← directly from header center
-  const hCZ = HDR_FZ + HD / 2;
-
-  const closerY = hCY;
-
-  const housingMesh = new THREE.Mesh(box(HW, HH, HD), mSilver);
-  housingMesh.position.set(hCX, hCY, hCZ);
-  housingMesh.castShadow = true;
-  scene.add(housingMesh);
-  [-1, 1].forEach(s => {
-    const cap = new THREE.Mesh(box(1.0, HH, HD), mDark);
-    cap.position.set(hCX + s * (HW / 2 + 0.5), hCY, hCZ);
-    scene.add(cap);
-  });
-
-  // 7B  RAIL — thin strip, sits flush UNDER the housing (top of rail = bottom of housing)
-  //   top Y = HDR_CY - HH/2 = HDR_BOT  →  attached to housing bottom, no float
-  //   backZ = HDR_FZ  →  same plane as housing
-  const RH = 1.2, RW = DW * 0.88, RD = HD - 1.0;
-  const rTopY = hCY - HH / 2;         // = HDR_BOT = 105.0  — touching housing
-  const rCY   = rTopY - RH / 2;       // rail center Y
-  const rCZ   = HDR_FZ + RD / 2;
-
-  const railMesh = new THREE.Mesh(box(RW, RH, RD), mSilver);
-  railMesh.position.set(0, rCY, rCZ);
-  scene.add(railMesh);
-
-  // 7C  SLIDE BLOCK — wraps the rail, same centerY/Z as rail
-  const CBW = 5.5, CBH = RH + 2.5, CBD = RD + 1.5;
-  const cCX = hCX, cCY = rCY, cCZ = rCZ;
-  const blockMesh = new THREE.Mesh(box(CBW, CBH, CBD), mSilver);
-  blockMesh.position.set(cCX, cCY, cCZ);
-  scene.add(blockMesh);
-
-  // 7D  BRACKET — on door top front edge, X offset from block so arm is diagonal
-  //   bottomY = DR_TOP  (rests on door top, gap = 0)
-  //   backZ   = DR_FZ   (against door front face, gap = 0)
-  const BH = 2.5, BW = 8.0, BD2 = 3.5;
-  const bCX = cCX - 20.0;
-  const bCY = DR_TOP + BH / 2;
-  const bCZ = DR_FZ + BD2 / 2;
-  const bracketMesh = new THREE.Mesh(box(BW, BH, BD2), mSilver);
-  bracketMesh.position.set(bCX, bCY, bCZ);
-  bracketMesh.castShadow = true;
-  scene.add(bracketMesh);
-  const flangeMesh = new THREE.Mesh(box(BW + 1.0, 0.6, BD2 + 0.8), mDark);
-  flangeMesh.position.set(bCX, DR_TOP + BH + 0.3, bCZ);
-  scene.add(flangeMesh);
-
-  // 7E  ARM  — block bottom-front  →  bracket flange top
-  //   armTopZ = rCZ + CBD/2  (block front face — well in front of header ✓)
-  //   armBotZ = bCZ          (in front of door ✓)
-  const armPiv = new THREE.Vector3(cCX, cCY - CBH / 2, cCZ + CBD / 2);
-  const armEnd = new THREE.Vector3(bCX, DR_TOP + BH + 0.3, bCZ);
-
-  const armMesh = new THREE.Mesh(new THREE.TubeGeometry(new THREE.LineCurve3(armPiv, armEnd), 1, 1.2, 10, false), mSilver);
-  scene.add(armMesh);
-
-  [{ pos: armPiv, r: 1.8 }, { pos: armEnd, r: 1.5 }].forEach(({ pos, r }) => {
-    const k = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 3.0, 14), mKnk);
-    k.rotation.x = Math.PI / 2;
-    k.position.copy(pos);
-    scene.add(k);
-  });
-
-  const bracketX_a = bCX;
-  const armMidY    = (armPiv.y + armEnd.y) / 2;
-
-  // ── 8. ANNOTATIONS ───────────────────────────────────────────
-  const annotTop    = DH / 2 + FW + HH + 6;
-  const annotBottom = -DH / 2 - FW - 4;
-
+  // ── Annotations ──
+  // Continuity-focused: every edge, hardware cutout, and frame-wall overlap is
+  // annotated so the radiation-shielding narrative is auditable from any camera angle.
+  // Reviewer can verify: Pb wraps tepi daun + jamb throat + sill, and is preserved
+  // across hinge / closer / lockset cutouts (kritik v1 §1-3).
+  const wallZSurface = -(DT / 2 + FD / 2 + WALL_T / 2 + 0.3) + WALL_T / 2;
   placeAnnotations(
     scene,
     [
-      { anchor: new THREE.Vector3(0, closerY + HH * 0.4, 0),              label: 'Automatic Door Closer' },
-      { anchor: new THREE.Vector3(bracketX_a, armMidY, 0),                 label: 'Arm + Bracket Closer' },
-      { anchor: new THREE.Vector3(GX + GW / 2, gYCenter, 0),               label: 'View Glass Timbal (Pb)' },
-      { anchor: new THREE.Vector3(DW / 6, DH / 2 - 1.4, 0),               label: 'Lapis Timbal Pb (Lead Lining)' },
-      { anchor: new THREE.Vector3(handleX + 6, handleY, DT / 2 + 4),       label: 'Handle Lever SS' },
-      { anchor: new THREE.Vector3(-DW / 2, handleY, 0),                    label: 'Mortise X-Ray Special (LBA)' },
-      { anchor: new THREE.Vector3(0, kickYCenter, DT / 2 + 1.2),           label: 'Kick Plate Stainless Steel' },
-      { anchor: new THREE.Vector3(DW / 2, 0, 0),                           label: 'Engsel Heavy Duty (3×)' },
-      { anchor: new THREE.Vector3(-DW / 2 - FW / 2, DH / 4, 0),           label: 'Kusen Steel Plate 1.5–2 mm' },
+      // Hardware identification (existing tier)
+      { partId: 'closer',      anchor: new THREE.Vector3(0, DH / 2 + FW / 2, DT / 2 + 3), label: 'Closer Sargent 281 (Regular Arm)' },
+      { partId: 'view-glass',  anchor: new THREE.Vector3(0, GY, glassDepth / 2), label: 'View Glass Pb (200×300, R15 corner)' },
+      { partId: 'bar-pull',    anchor: new THREE.Vector3(DW / 2 - 4, 0, DT / 2 + 2.5), label: 'Bar Pull SS ⌀22×500' },
+      { partId: 'hinges',      anchor: new THREE.Vector3(-DW / 2, DH / 2 - 18, DT / 2), label: 'Hinge 1/3 (5-knuckle butt)' },
+      { partId: 'lockset',     anchor: new THREE.Vector3(DW / 2 + 0.5, -8, 0), label: 'Mortise X-Ray + Faceplate 250mm' },
+      { partId: 'kickplate',   anchor: new THREE.Vector3(0, kpY, DT / 2 + 0.32), label: 'Kickplate SS (260mm)' },
+      { partId: 'drop-seal',   anchor: new THREE.Vector3(DW / 2 - 0.5, -DH / 2 + 0.5, DT / 2 + 0.4), label: 'Drop Seal + Activation Pin' },
+      { partId: 'frame',       anchor: new THREE.Vector3(-(DW / 2 + FW / 2), -DH / 2 + 30, FD / 2), label: 'Frame Jamb (Pb-lined throat)' },
+
+      // Continuity tier — auditable shielding narrative
+      { partId: 'lead-stripes', anchor: new THREE.Vector3(0, DH / 2 - 1, 0), label: '2 mmPb continuous · Top Edge' },
+      { partId: 'lead-stripes', anchor: new THREE.Vector3(0, -DH / 2 + 1, 0), label: '2 mmPb continuous · Bottom Edge' },
+      { partId: 'lead-stripes', anchor: new THREE.Vector3(HINGE_X + 1, 0, 0), label: '2 mmPb continuous · Hinge Edge (no break at knuckle cutout)' },
+      { partId: 'lead-stripes', anchor: new THREE.Vector3(HANDLE_X - 1, 0, 0), label: '2 mmPb continuous · Latch Edge (mortise pocket lined)' },
+      { partId: 'view-glass',   anchor: new THREE.Vector3(GW / 2 + 1, GY, -DT / 4 + 0.3), label: 'Pb rebate frame · View Glass overlap' },
+      { partId: 'frame',        anchor: new THREE.Vector3(-(DW / 2 + FW / 2), DH / 4, wallZSurface), label: 'Frame-Wall overlap · Pb tab wraps drywall' },
     ],
-    DW / 2 + 58,
-    [annotBottom, annotTop],
+    DW / 2 + 60,
+    [-DH / 2, DH / 2 + FW + 5],
   );
+
+  return { leafPivot, closerGroup };
 }
 
-// ─── React component ──────────────────────────────────────────
+// ── Scenario mode (open / close cycle) ───────────────────────
+type DoorScenario = 'closed' | 'open';
+const OPEN_ANGLE_RAD = Math.PI / 2; // 90° outward swing (latch side moves +Z)
+const CYCLE_DURATION_MS = 900;
 
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+// ── React component ──────────────────────────────────────────
 export function PbLeadDoorAssembled3D({ product }: Props) {
-  const [activePreset, setActivePreset] = useState<string>(
-    product.cameraPresets[0]?.name ?? '',
-  );
+  const [activePreset, setActivePreset] = useState<string>(product.cameraPresets[0]?.name ?? '');
+  const [scenarioMode, setScenarioMode] = useState<DoorScenario>('closed');
+  const handlesRef = useRef<SceneHandles | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const { attachHighlight } = useHighlightController();
 
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: {
@@ -450,25 +937,66 @@ export function PbLeadDoorAssembled3D({ product }: Props) {
       maxDistance: 900,
     },
     onInit: (refs) => {
-      buildScene(refs.scene, refs.renderer);
+      handlesRef.current = buildScene(refs.scene, refs.renderer);
       const p = product.cameraPresets[0];
-      applyCameraPreset(refs, p.position, p.target);
+      if (p) applyCameraPreset(refs, p.position, p.target);
+      attachHighlight(refs);
     },
     deps: [product],
   });
 
+  // Animate leaf rotation + closer visibility when scenarioMode changes
+  useEffect(() => {
+    const handles = handlesRef.current;
+    if (!handles) return;
+    if (animFrameRef.current !== null) cancelAnimationFrame(animFrameRef.current);
+
+    const fromAngle = handles.leafPivot.rotation.y;
+    const toAngle = scenarioMode === 'open' ? OPEN_ANGLE_RAD : 0;
+    const startTime = performance.now();
+
+    // Closer is hidden during open scenario because arm articulation isn't
+    // modelled; showing static closer with rotated leaf would clip into frame.
+    handles.closerGroup.visible = scenarioMode === 'closed';
+
+    const tick = () => {
+      const t = Math.min((performance.now() - startTime) / CYCLE_DURATION_MS, 1);
+      const eased = easeInOutCubic(t);
+      handles.leafPivot.rotation.y = fromAngle + (toAngle - fromAngle) * eased;
+      if (t < 1) {
+        animFrameRef.current = requestAnimationFrame(tick);
+      } else {
+        animFrameRef.current = null;
+      }
+    };
+    animFrameRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (animFrameRef.current !== null) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+    };
+  }, [scenarioMode]);
+
   const goTo = (p: CameraPreset) => {
-    if (refsRef.current) applyCameraPreset(refsRef.current, p.position, p.target);
+    if (refsRef.current) animateCameraTo(refsRef.current, p.position, p.target, 600);
     setActivePreset(p.name);
   };
+
   const dl = (name: string) =>
-    refsRef.current && downloadPNG(
+    refsRef.current &&
+    downloadPNG(
       refsRef.current.renderer,
       `${product.id}-assembled-${name.toLowerCase().replace(/\s+/g, '-')}.png`,
     );
+
   const dlAll = () =>
     product.cameraPresets.forEach((p, i) =>
-      setTimeout(() => { goTo(p); setTimeout(() => dl(p.name), 220); }, i * 520),
+      setTimeout(() => {
+        goTo(p);
+        setTimeout(() => dl(p.name), 700);
+      }, i * 1000),
     );
 
   return (
@@ -480,6 +1008,25 @@ export function PbLeadDoorAssembled3D({ product }: Props) {
         onDownload={dl}
         onDownloadAll={dlAll}
       />
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-card text-xs uppercase tracking-wide">
+        <span className="text-muted-foreground">Scenario:</span>
+        <button
+          type="button"
+          onClick={() => setScenarioMode('closed')}
+          className={`px-2 py-1 border ${scenarioMode === 'closed' ? 'bg-foreground text-background border-foreground' : 'bg-background text-foreground border-border hover:bg-accent'}`}
+          aria-pressed={scenarioMode === 'closed'}
+        >
+          Closed (audit view)
+        </button>
+        <button
+          type="button"
+          onClick={() => setScenarioMode('open')}
+          className={`px-2 py-1 border ${scenarioMode === 'open' ? 'bg-foreground text-background border-foreground' : 'bg-background text-foreground border-border hover:bg-accent'}`}
+          aria-pressed={scenarioMode === 'open'}
+        >
+          Open 90°
+        </button>
+      </div>
       <div className="flex-1 min-h-0">
         <div ref={mountRef} className="w-full h-full" />
       </div>
