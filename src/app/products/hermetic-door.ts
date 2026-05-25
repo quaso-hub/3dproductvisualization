@@ -72,16 +72,16 @@ const HERMETIC_DOOR: Product = {
   ],
 
   cameraPresets: [
-    { name: 'Isometric',        position: [220, 160, 300],  target: [0, 0, 0]  },
-    { name: 'Tampak Depan',     position: [0,   0,   350],  target: [0, 0, 0]  },
-    { name: 'Tampak Samping',   position: [350, 0,   0],    target: [0, 0, 0]  },
-    { name: 'Detail Atas',      position: [80,  180, 200],  target: [0, 80, 0] },
-    { name: 'Detail Jendela',   position: [80,  60,  200],  target: [0, 60, 0] },
-    { name: 'Tampak Atas',      position: [0,   450, 0],    target: [0, 0, 0]  },
+    { name: 'Isometric',        position: [320, 200, 420],  target: [0, 0, 0]  },
+    { name: 'Tampak Depan',     position: [0,   0,   500],  target: [0, 0, 0]  },
+    { name: 'Tampak Samping',   position: [500, 0,   0],    target: [0, 0, 0]  },
+    { name: 'Detail Atas',      position: [120, 220, 280],  target: [0, 80, 0] },
+    { name: 'Detail Jendela',   position: [120, 60,  280],  target: [0, 60, 0] },
+    { name: 'Tampak Atas',      position: [0,   600, 0],    target: [0, 0, 0]  },
   ],
 
-  assembledCameraStart: [220, 160, 300],
-  explodedCameraStart:  [220, 0,   420],
+  assembledCameraStart: [320, 200, 420],
+  explodedCameraStart:  [380, 100, 580],
 };
 
 export default HERMETIC_DOOR;

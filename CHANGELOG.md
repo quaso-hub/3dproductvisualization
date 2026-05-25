@@ -2,6 +2,574 @@
 
 ---
 
+## [2026-05-25 - Session 10] - Hermetic Door rebuild + Highlight system foundation
+
+> **Context**: User feedback dari sesi review: 9 issues per produk + permintaan kreasikan animasi 90° (PbLead pattern) untuk semua produk + tambahan fitur highlight/dim ketika sorot/klik label↔part. Sesi ini eksekusi Item 1 (hermetic door) + Item 2A (highlight system foundation + pilot). Run dipecah agar tidak hit context limit.
+
+### Research
+
+**Created (3 reports, ~100 KB total):**
+- `docs/research/2026-05-24-highlight-dim-pattern.md` — 8 approach comparison, recommendation: material-property tween + scale-up + CSS class (no postprocessing). Rejects OutlinePass + selective bloom karena conflict dengan on-demand renderer + `shadowMap.autoUpdate=false`.
+- `docs/research/2026-05-24-scenario-animations-per-product.md` — per-product animation strategy untuk 13 products. Implementation order: pacs-cabinet → ceiling-panel → hermetic-door → pass-box → laf-system → scrub-sink → hvac-system. Shared primitive: `useScenario` + 6 cluster controllers.
+- `docs/research/2026-05-24-3d-viewer-ux-patterns.md` — 15 UX patterns (Apple/Sketchfab/Tesla benchmarks), 12 anti-patterns, full interaction grammar, onboarding spec.
+
+### Item 1 — Hermetic Door rebuild
+
+**Modified:**
+- `src/app/components/HermeticDoorAssembled3D.tsx` — wall belakang door (`wallMesh` 192×226×2 di Z=-50) **dihapus** karena menghalangi scenario open/close mode (Item 2B nanti). `matWall` retained sebagai reference (void-tagged).
+- `src/app/components/HermeticDoorExploded3D.tsx` — full rewrite (267 → 369 lines). Sebelum: hanya 5 panel cross-section + glass. Sesudah: **semua komponen exploded** (panel 5-layer cross-section, glass forward, frame radial outward, housing up, track rail, handle, sensor, floor guide, Pb stripe, EPDM gasket) dengan dashed connector ke posisi assembled.
+- `src/app/products/hermetic-door.ts` — camera presets diperluas (Isometric 220→320, 160→200, 300→420; Tampak Depan z 350→500; Samping x 350→500; Atas y 450→600). `explodedCameraStart` 320,80,520 → 380,100,580 untuk fit semua exploded components.
+
+**Visual verified**: 8 screenshots di `visual-inspection-screenshots-item1-after/`. Build green, zero pageerror, gzip 2.78 KB exploded (no growth).
+
+### Item 2A — Highlight system foundation + Hermetic pilot
+
+**Created:**
+- `src/app/lib/viz-interaction-tokens.ts` (98 lines) — single source of truth untuk timing (DURATION.highlight=250ms, cameraFly=350ms), easing (EASING_CSS.standard, EASE.outCubic JS fn), HIGHLIGHT (emissiveIntensity 0.35, scale 1.04), DIM (opacity 0.25), TOUCH (targetMin 44px), Z_INDEX layers, `prefersReducedMotion()`/`isCoarsePointer()` helpers.
+- `src/app/lib/highlight-controller.ts` (379 lines) — class `HighlightController` dengan: scanScene (walk userData.partId), label sync via `data-part-id`, raycaster throttled 33ms, single rAF tween loop, material clone-on-first-highlight (skip sentinel-shared materials), Escape keybinding, public API (setHover/pin/togglePin/clearPin), full disposal restore originals.
+- `src/app/hooks/useHighlightController.ts` (87 lines) — React hook `attachHighlight(refs)` callable di `onInit` setelah scene built. Auto-disposes on unmount/deps change.
+- `src/app/styles/highlight.css` (98 lines) — label state CSS via `data-highlight-state` attr (idle/hover/pinned/dim). Pinned state inverted dark + × clear button (CSS `::after`). `prefers-reduced-motion` collapses transitions; `(pointer: coarse)` enlarges padding to 44px touch target.
+
+**Modified:**
+- `src/app/lib/three-scene.ts` — `createLabel()` extended dengan optional `partId` param; sets `dataset.partId` + adds `.viz-label` class. `placeAnnotations()` items[] now accepts `partId?: string`, threaded through to createLabel.
+- `src/styles/index.css` — import `../app/styles/highlight.css`.
+- `src/app/components/HermeticDoorAssembled3D.tsx` — pilot integration:
+  - Tag 7 mesh dengan `userData.partId`: frame (sill+jambL+jambR), door-panel, lead-glass, pb-stripe, handle (bar+brackets), housing (D-profile+LED indicator), sensor (boxes+green/amber LEDs), track.
+  - 7 annotation items receive matching `partId`.
+  - `useHighlightController` hook integrated; `attachHighlight(refs)` called di onInit setelah `applyCameraPreset`.
+
+**Visual verified** (`visual-inspection-screenshots-item2a-highlight/`):
+- Hover label "Lead Glass Pb 5mm" → label putih+border cyan elevated, mesh emissive boost, 6 lain dim opacity 0.35.
+- Hover label "Handle SS" → handle bar+brackets bright+scale 1.04.
+- Click label "Electric Motor Housing" → pinned state (label inverted dark+× button), housing fokus, 6 lain dim.
+- Press Escape → unpin, semua kembali idle, console log confirms 7 labels state idle.
+
+**Build size**: CSS 119→121 KB (gzip 19.84→20.18 KB), Hermetic Assembled 5.44→13.00 KB (gzip 2.38→4.70 KB). Total +4.3 KB gzip (acceptable).
+
+### Hard rules added
+
+- ❌ **Jangan tambah `wallMesh` di hermetic** — di-delete intentional Session 10 untuk enable scenario open mode.
+- ✅ **Tag mesh dengan `userData.partId = string`** untuk semua mesh yang punya annotation.
+- ✅ **Thread `partId` ke `placeAnnotations` items** untuk auto-sync label↔mesh.
+- ✅ **Call `attachHighlight(refs)` di onInit** setelah scene built. Hook auto-disposes.
+
+---
+
+## [2026-05-24 - Session 9] - Kritik Empirical Audit + Critical Code Fixes
+
+> **Context**: Pasca handoff doc deep-read (309 MD files diserap), banyak demand kritik v1-v5 (HVAC, PbLead, ScrubSink) yang menurut handoff masih open ternyata **sudah dieksekusi** di Session 7-8. Sesi ini mengoreksi catatan, mengeksekusi sisa demand yang valid, dan membersihkan technical debt yang teraudit di codebase audit 2026-05-23.
+
+### TASK 6 — Empirical kritik audit
+
+**Created:**
+- `arahan-baru/kritik_status_2026-05-24.md` (~9 KB) — line-per-line audit kritik v1-v5 vs kode aktual. Verdict: HVAC 24 DONE / 11 PARTIAL / 8 MISSING dari 43 demand. PbLead 16 DONE / 4 PARTIAL / 4 MISSING dari 24. ScrubSink 17 DONE / 3 PARTIAL / 3 MISSING dari 23. Total: 57 DONE / 18 PARTIAL / 15 MISSING dari 90 demand.
+- File ini menjadi sumber otoritas baru, menggantikan 6 kritik file lama.
+
+### TASK 2 — Cleanup stale directives + Wastafel duplicate
+
+**Deleted (orphan):**
+- `src/app/components/WastafelScrub.jsx` (9.5 KB) — duplikat dari `mentahan/WastafelScrub.jsx` (hash match). Predecessor R3F dari `ScrubSinkAssembled3D.tsx` Session 8. Verified zero importers.
+- `src/app/components/WastafelScrub.md` (companion doc)
+
+**Moved to archive:**
+- `arahan-baru/HvacSystemBIM3D_V7_COMPLETE.tsx` (44.8 KB) → `mentahan/HvacSystemBIM3D_V7_COMPLETE.tsx.archived`. V7 = 1021-line monolithic regression yang akan delete seluruh `hvac-bim-v2/` engineering layer (4865 LOC dengan MetricStatus, ProvenanceSource, ComplianceGate, AirBalance, PressureLadder). `.archived` extension prevents accidental imports.
+
+**Created:**
+- `mentahan/README.md` — inventory + rules untuk archive folder.
+
+**Banner added (SUPERSEDED 2026-05-24):**
+- `arahan-baru/kritik_hvac.md`, `kritik_hvac_v2.md`, `kritik_hvac_v3.md`, `kritik_hvac_v4.md`, `kritik_hvac_v5.md`, `kritik_pb-lead-door_scrub_sink_bay_v1.md` — semua redirect ke `kritik_status_2026-05-24.md`.
+
+### TASK 4 — ScrubSink specs numerical performance
+
+**Modified `src/app/products/scrub-sink.ts`:**
+- Tambah `Flow Rate`: 6–8 L/min per faucet (regulated, hands-free)
+- Tambah `Temp Range`: 38–42 °C TMV setpoint (NHS HTM 04-01 compliant warm water)
+- Upgrade `Anti-Scald`: Thermostatic Mixing Valve, max 46 °C cut-off + cold-failsafe
+- Tambah `Sensor IR`: Hands-free activation, 50–80 mm range, 30 s auto-shutoff
+
+Addresses kritik v1 §3.8 "regulatory parameter".
+
+### TASK 1 — PbLead continuity annotations 3D
+
+**Modified `src/app/components/PbLeadDoorAssembled3D.tsx`:**
+- Tambah 6 CSS2DObject annotations di tier "continuity" (auditable shielding narrative):
+  - `2 mmPb continuous · Top Edge`
+  - `2 mmPb continuous · Bottom Edge`
+  - `2 mmPb continuous · Hinge Edge (no break at knuckle cutout)`
+  - `2 mmPb continuous · Latch Edge (mortise pocket lined)`
+  - `Pb rebate frame · View Glass overlap`
+  - `Frame-Wall overlap · Pb tab wraps drywall`
+
+Total: 14 annotations (8 hardware identification + 6 continuity). Addresses kritik v1 §1-3 "edge continuity" + "frame-wall interface".
+
+### TASK 5 — PbLead open/close scenario mode
+
+**Modified `src/app/components/PbLeadDoorAssembled3D.tsx`:**
+- Refactor `buildScene` return `{ leafPivot, closerGroup }` SceneHandles
+- Created `THREE.Group` `leafPivot` di hinge axis (HINGE_X, 0, 0)
+- Routed all door-mounted geometry ke `leafGroup` child:
+  - Door leaf sculpted bevel + window aperture
+  - Lead continuity 4 perimeter stripes
+  - 4 EPDM gasket (top/bottom/hinge/latch)
+  - Drop seal housing + sweep + activation pin
+  - View glass + Pb rebate frame + SS bezel
+  - Kickplate + 8 screws
+  - Bar pull + mortise + door-side hinge leaves + door-side hinge screws
+- Frame jambs + wall + architrave + threshold + rubber stop bead + frame-side hinge leaves/pin/knuckles/screws + lead-lined jamb continuity tetap di scene root (static)
+- Closer geometry (Sargent 281 articulated) di `closerGroup` — hidden saat open scenario karena articulation tidak dimodelkan
+- React state `scenarioMode: 'closed' | 'open'` dengan animation effect (`easeInOutCubic`, 900ms, 0° ↔ 90°)
+- UI toggle 2 button di bar atas viewer ("Closed (audit view)" + "Open 90°")
+
+Addresses kritik v1 §6 "operability & safety state".
+
+### TASK 3 — Codebase audit critical fixes
+
+**TASK 3a — B1 disposeScene closure** (`docs/research/2026-05-23-codebase-audit.md` Finding B1):
+4 standalone viewer non-hook menggunakan `containerRef.current` di cleanup closure (race window di concurrent React). Replace dengan captured `container` local + null `refsRef.current` post-dispose.
+- `src/app/components/XrayViewerAssembled3D.tsx`
+- `src/app/components/XrayViewerExploded3D.tsx`
+- `src/app/components/SurgicalControlPanelAssembled3D.tsx`
+- `src/app/components/SurgicalControlPanelExploded3D.tsx`
+
+**TASK 3b — B2 shared materials sentinel** (Finding B2):
+`disposeScene` di `three-scene.ts` traverse semua mesh dan dispose materials, termasuk singleton dari `lib/materials.ts`. Latent crash kalau `mat.*` diadopsi cross-viewer.
+- `src/app/lib/materials.ts`: tambah `SHARED_MATERIAL_SENTINEL` (Symbol.for) + `Object.defineProperty` non-enumerable di tiap material di `mat`. Export `isSharedMaterial(m): boolean` guard.
+- `src/app/lib/three-scene.ts`: `disposeScene` panggil `isSharedMaterial(m)` skip-and-don't-dispose-textures-of shared materials.
+
+**TASK 3c — F1 dual registry investigation** (Finding F1):
+Audit klaim "dual registry undermines code-splitting" — actually misread. Realitas:
+- `viewerRegistry.ts` (eager) zero importers — dead code
+- `ProductViewer.tsx` zero importers — dead code
+- Per-viewer chunks tetap ter-split correctly (build proof: PbLead 13.27 KB, ScrubSink 14.51 KB, dst.)
+
+Cleanup orphan:
+- Deleted `src/app/data/viewerRegistry.ts`
+- Deleted `src/app/components/ProductViewer.tsx`
+- `src/app/components/index.ts`: removed `ProductViewer` re-export
+- `src/app/data/index.ts`: replaced `VIEWER_REGISTRY` re-exports dengan `LAZY_VIEWER_REGISTRY`
+
+### Bonus — Sidebar regression fix
+
+**Found during visual verify:** X-Ray Viewer + Surgical Control Panel **invisible di sidebar** karena `CATEGORY_ORDER` di `Sidebar.tsx` tidak include `'Peralatan Medis'` + `'Peralatan Kontrol'`. Type `ProductCategory` juga tidak include keduanya — produk lolos compile karena project tidak punya `tsconfig.json` (no type-check di build).
+
+**Modified:**
+- `src/app/data/products.ts`: `ProductCategory` union tambah `'Peralatan Medis'` + `'Peralatan Kontrol'`
+- `src/app/components/Sidebar.tsx`: `CATEGORY_ORDER` tambah 2 entri + `CATEGORY_ICONS` (Stethoscope + SlidersHorizontal)
+
+Both products sekarang tampil di sidebar.
+
+### Bonus — stopRender bug fix (pre-existing, surfaced by B1)
+
+**Found during stress test:** `TypeError: t is not a function` saat rapid switch X-Ray → Surgical Panel. Root cause:
+- `startRenderLoop` di `three-scene.ts` mengembalikan `{ stop, invalidate }` object
+- 4 viewer (XrayViewer × 2, SurgicalControlPanel × 2) salah perlakukan return value sebagai function: `let stopRender: (() => void) | undefined; stopRender = startRenderLoop(refs); ... stopRender?.();`
+- Bug pre-existing, tetapi **tidak terlihat** sebelum B1 fix karena cleanup sering skip akibat null `containerRef.current`. B1 fix bikin cleanup reliable → bug surface.
+
+**Fix:**
+- Type annotation jadi `let stopRender: { stop: () => void; invalidate: () => void } | undefined`
+- Call site jadi `stopRender?.stop()`
+
+### Visual verification
+
+**Created `verify-session9.cjs`** (replaced `screenshot-check.cjs` for this session):
+- 7 screenshots di `visual-inspection-screenshots-session9/`
+- 6 product captures + 1 rapid-switch stress capture (B1+B2 paths exercised)
+- Zero `pageerror` dalam final run
+- Hash check: open scenario distinct dari closed (rotation rendered correctly)
+- Toggle bidirectional: closed → open → closed restores byte-identical state
+
+### Build metrics
+
+| Metric | Before Session 9 | After Session 9 |
+|---|---|---|
+| Initial bundle gzip | 47.36 KB | 47.94 KB (+580 B for stopRender type + sentinel guard + scenario UI) |
+| PbLead chunk gzip | 4.83 KB | 4.99 KB (+160 B for 6 annotations + open/close pivot logic) |
+| ScrubSink chunk gzip | 5.24 KB | 5.23 KB (no change — only spec text edits) |
+| Build time | ~6.5s | ~5.6-6.2s |
+| Build status | green | green |
+
+### Files touched
+
+**Source code (10):**
+- `src/app/components/PbLeadDoorAssembled3D.tsx` — annotations + open/close
+- `src/app/components/Sidebar.tsx` — CATEGORY_ORDER fix
+- `src/app/components/SurgicalControlPanelAssembled3D.tsx` — B1 + stopRender
+- `src/app/components/SurgicalControlPanelExploded3D.tsx` — B1 + stopRender
+- `src/app/components/XrayViewerAssembled3D.tsx` — B1 + stopRender
+- `src/app/components/XrayViewerExploded3D.tsx` — B1 + stopRender
+- `src/app/components/index.ts` — barrel cleanup
+- `src/app/data/index.ts` — registry re-export rewire
+- `src/app/data/products.ts` — ProductCategory union
+- `src/app/lib/materials.ts` — SHARED_MATERIAL_SENTINEL
+- `src/app/lib/three-scene.ts` — disposeScene guard
+- `src/app/products/scrub-sink.ts` — specs numerical
+
+**Files deleted (4):**
+- `src/app/components/ProductViewer.tsx` (orphan)
+- `src/app/components/WastafelScrub.jsx` (duplicate of mentahan/)
+- `src/app/components/WastafelScrub.md`
+- `src/app/data/viewerRegistry.ts` (orphan)
+
+**Files moved (1):**
+- `arahan-baru/HvacSystemBIM3D_V7_COMPLETE.tsx` → `mentahan/HvacSystemBIM3D_V7_COMPLETE.tsx.archived`
+
+**Documents (8):**
+- `arahan-baru/kritik_status_2026-05-24.md` (NEW)
+- `arahan-baru/kritik_hvac.md` (banner)
+- `arahan-baru/kritik_hvac_v2.md` (banner)
+- `arahan-baru/kritik_hvac_v3.md` (banner)
+- `arahan-baru/kritik_hvac_v4.md` (banner)
+- `arahan-baru/kritik_hvac_v5.md` (banner)
+- `arahan-baru/kritik_pb-lead-door_scrub_sink_bay_v1.md` (banner)
+- `mentahan/README.md` (NEW)
+
+**Verification (1):**
+- `verify-session9.cjs` (NEW) + `visual-inspection-screenshots-session9/` (7 PNGs)
+
+### Risk + future work
+
+- **Annotations static during leaf rotation**: anchors di door-leaf relative coords akan drift saat scenario `open`. Acceptable trade-off — buttons clearly label "audit view" vs "Open 90°"; user inspect geometry visually di open mode, audit di closed mode.
+- **Open mode hides closer**: Sargent 281 closer arm articulation tidak dimodelkan (3-bar linkage realtime kinematic = scope creep). Cleanly hidden, with comment in code.
+- **HVAC visual annotations** (kritik MISSING items #1-8 dari `kritik_status_2026-05-24.md`): sensor pin di geometry, equipment code label 3D, AGSS dedicated stack, drain pan, humidifier, N+1 fan visual, elevation tag, CFM-anchored arrows — semua tetap defer (4-8 jam, higher risk).
+- **PbLead + ScrubSink compliance gate pattern porting** dari HVAC: defer (4-6 jam).
+- **`tsconfig.json` absent** — TypeScript type errors lolos. Add tsconfig pre-deploy untuk catch ProductCategory-style issues earlier.
+
+---
+
+## [2026-05-19 - Session 7] - Documentation Auto-Aware System
+
+### Documentation System
+
+**Created auto-linked documentation:**
+- `docs/INDEX.md` - Navigation hub (181 lines)
+- `docs/CONTEXT.md` - Live state, auto-updated (313 lines)
+- `README.md` - Project overview with doc links
+
+**Auto-sync system:**
+- `docs/sync-context.js` - Node script for auto-update
+- `.git/hooks/pre-commit` - Git hook to sync before commit
+- `npm run sync-docs` - Manual sync command
+
+**Cross-references:**
+- All docs link to each other
+- INDEX.md as navigation entry point
+- CONTEXT.md tracks live state
+- README.md points to docs folder
+
+### NPM Scripts Added
+
+```json
+{
+  "dev": "vite",
+  "build": "vite build",
+  "preview": "vite preview",
+  "sync-docs": "node docs/sync-context.js"
+}
+```
+
+---
+
+## [2026-05-19 - Session 6] - Documentation Complete
+
+### Documentation Added
+
+**Created comprehensive documentation suite:**
+- `docs/PRD.md` - Product Requirements Document (10.6 KB)
+- `docs/SRD.md` - System Requirements Document (15.3 KB)
+- `docs/MEMORY.md` - Memory Bank / Context (10.4 KB)
+- `docs/HANDOFF.md` - Handoff Guide (13.4 KB)
+
+**Documentation Coverage:**
+- Product scope (12 products)
+- Technical architecture
+- Component specifications
+- Performance baseline
+- Testing checklist
+- Troubleshooting guide
+- Deployment instructions
+
+---
+
+## [2026-05-18 - Session 5] - HVAC Mobile Overhaul & Rendering Polish
+
+### HVAC Mobile Responsive Overhaul
+
+**New Mobile Drawer System:**
+- Added slide-up drawer from bottom for mobile devices
+- Toggle button fixed at bottom-right corner
+- Compact status summary in drawer
+- Quick subsystem action buttons
+- Drawer handles 70% viewport height max
+
+**Desktop vs Mobile Separation:**
+- All desktop controls use `hidden sm:flex/block`
+- Mobile controls use `sm:hidden`
+- Legend, Trust Banner: Desktop only
+- Mode tabs: Desktop sidebar vs Mobile bottom strip
+
+**Performance Improvements:**
+- HVAC bundle: 27.06 KB → 22.03 KB (-18%)
+- Simplified overlay components
+- Removed redundant UI elements
+
+### Camera Animation System
+
+**New `animateCameraTo()` utility:**
+- Smooth ease-out cubic interpolation
+- Configurable duration (default 800ms)
+- Promise-based for chaining
+- Used for mode/view transitions
+
+### Rendering Quality Fixes
+
+**Three.js Scene Improvements:**
+- Better shadow map quality (PCFSoftShadowMap)
+- Enhanced 6-point lighting with hemisphere
+- Shadow radius for soft edges
+- Limited pixel ratio to 2x for performance
+
+---
+
+## [2026-05-18 - Session 4] - Product Cleanup & Mobile Fixes
+
+### Product Cleanup
+
+**Archived duplicate products:**
+- Removed Sandwich Standard from PRODUCTS array (same viewer as Radiasi)
+- Removed Cleanroom Panel from PRODUCTS array (same viewer as Radiasi)
+- Files kept for backup: sandwich-standard.ts, cleanroom.ts
+- Now only 12 unique products displayed (down from 14)
+
+### AI Slop Typography Fixes
+
+**Removed em-dash (AI indicator) from all files:**
+- Fixed 35+ component files using bulk replacement
+- Replaced all em-dash (U+2014) with regular hyphen (U+002D)
+- Files affected: All components in src/app/components/*.tsx
+- Removed AI-style javadoc comments with em-dashes
+
+### Mobile Responsive Fixes
+
+**HVAC BIM Viewer (HvacSystemBIM3D.tsx):**
+- Mode buttons: Hidden on mobile, shown on tablet+
+- Added mobile mode tabs at bottom (3 modes)
+- Scenario selector: Responsive width, smaller fonts
+- Headline KPI strip: Hidden on mobile
+- Focus pins: Hidden on mobile
+- All border-radius set to 0 (MONO theme)
+
+**HVAC Overlay (overlay.tsx):**
+- Legend: Hidden on mobile (sm:block)
+- Trust banner: Hidden on mobile
+- Right panel: Scrollable on mobile, max-width responsive
+- Smaller fonts for mobile (text-[9px] vs text-[10px])
+
+---
+
+## [2026-05-18 - Session 3.5] - Bug Fixes & Rendering Polish
+
+### Critical Bug Fixes
+
+**Blank Page Issue Fixed:**
+- Removed duplicate `surgical-panel` entry from viewer registry
+- Fixed missing import for `SurgicalPanelAssembled3D`
+- Cleaned up barrel exports (components/index.ts)
+- Fixed infinite loop in `ProductViewerLazy` useEffect
+- Added error boundary at root level (main.tsx)
+- Fixed viewerType reference in surgical-panel.ts
+
+### 🎨 Rendering Quality Improvements
+
+**Three.js Renderer:**
+- Limited pixel ratio to max 2x for performance
+- Changed shadow map to `PCFSoftShadowMap` for softer shadows
+- Added shadow radius for smooth shadow edges
+- Disabled stencil buffer for performance
+- Manual render info reset for debugging
+
+**Lighting (Professional 6-point setup):**
+- Hemisphere light for natural sky/ground bounce
+- Key light with soft shadow edges (shadow radius = 4)
+- Fill light from left (cool tone)
+- Rim light from back-right (warm tone)
+- Top soft fill
+- Front fill for medical equipment detail
+- Balanced shadow map size (2048x2048 for performance)
+
+### 📱 Mobile Responsive Updates
+
+- Mobile viewport detection in Sidebar
+- Touch device optimizations (44px minimum targets)
+- Active state instead of hover on touch devices
+- Landscape phone styling
+- Container queries support
+- Reduced font-size for small screens
+
+---
+
+## [2026-05-18 — Session 3] — Performance Optimization & Code-Splitting
+
+### 🚀 Performance Improvements (MAJOR)
+
+**Bundle Size Reduction:**
+- Initial bundle: 275 KB → **115 KB** (-58%)
+- Three.js core: 542 KB → **139 KB** (chunked)
+- Each viewer: 0.8 KB → 9 KB (on-demand)
+
+**Code-Splitting Implementation:**
+- 38 individual chunks for lazy loading
+- Three.js core + addons separated
+- React + ReactDOM as vendor chunk
+- Lucide icons as separate chunk
+- Each 3D viewer loads on-demand
+
+**New Performance Features:**
+- `lazyViewerRegistry.ts` — Lazy-loaded viewer registry
+- `ViewerSkeleton.tsx` — Animated loading skeleton
+- `ViewerErrorBoundary.tsx` — Graceful error handling
+- `ProductViewerLazy.tsx` — Optimistic UI + lazy loading
+- Preload on hover (instant navigation)
+- Keyboard navigation (J/K or Arrow Up/Down)
+- Predictive prefetching (adjacent products)
+
+**Bundle Breakdown:**
+```
+Initial Load (gzip):
+├── HTML: 0.37 KB
+├── CSS: 19.72 KB
+├── Main JS: 47.09 KB
+├── React: 43.22 KB
+├── Lucide: 3.86 KB
+└── Total: ~115 KB
+
+On-Demand (cached):
+├── Three.js Core: 138.83 KB
+├── Three.js Addons: 6.21 KB
+└── Each Viewer: 0.8 - 9 KB
+```
+
+### 📦 Product Registry Cleanup
+
+- Removed duplicate `surgical-panel.ts` (same as `surgical-control-panel`)
+- Clarified wall panel variants (3 separate products)
+- Final count: **15 unique products**
+
+### 🎨 Late Animation Additions
+
+- `spin-slow` — Rotating loading cube
+- `spin-reverse` — Counter-rotation effect
+- `shimmer` — Progress bar shimmer
+- `fade-in` — Smooth content appearance
+- `prefers-reduced-motion` support
+
+---
+
+## [2026-05-18 — Session 2] — Complete Product Coverage (16/16 Products)
+
+### 🎯 New 3D Viewers (2 Products Added)
+
+**X-RAY VIEWER** (Double Screen LED Illuminator):
+- Dimensions: 880 × 503 × 29mm
+- Features: >10,000 LUX brightness, 5,900-9,000K adjustable
+- 6 layers: Frame, Diffuser, LED Array, Heatsink, Housing, PSU
+- Files: `xray-viewer.ts`, `XrayViewerAssembled3D.tsx`, `XrayViewerExploded3D.tsx`
+
+**SURGICAL CONTROL PANEL TOUCHSCREEN** (Windows Smart Control):
+- Dimensions: 600 × 500 × 100mm
+- Features: 15.6" IPS LCD, Modbus TCP/IP, Operating Timer
+- UI Display: CanvasTexture dengan real-time medical interface
+- 8 layers: Housing, PSU, Mainboard, CPU, I/O, Cooling, LCD, Glass
+- Files: `surgical-control-panel.ts`, `SurgicalControlPanelAssembled3D.tsx`, `SurgicalControlPanelExploded3D.tsx`
+
+### 📦 Product Registry Updated
+
+- `viewerRegistry.ts`: Added xray-viewer + surgical-control-panel entries
+- `products/index.ts`: Added 2 new products to PRODUCTS array
+
+### 📊 Final Count
+
+| Category | Count |
+|----------|-------|
+| Total Products | 16 |
+| Assembled Views | 15 |
+| Exploded Views | 15 |
+| Custom Views (HVAC) | 1 |
+| Total Viewers | 31 |
+
+---
+
+## [2026-05-18] — MONO Theme + Accessibility Audit + Architecture Refactoring
+
+### 🎨 MONO Theme (Tweakcn Inspired)
+
+Complete UI/UX overhaul with minimalist monospace aesthetic:
+
+**Theme Features:**
+- Zero border radius (sharp corners throughout)
+- JetBrains Mono monospace font
+- Monochrome black & white palette
+- No shadows (flat design)
+- Uppercase labels with letter-spacing
+
+**Files Added:**
+- `src/app/data/viewerRegistry.ts` — Central registry for viewer components (replaces switch statement)
+- `src/app/hooks/useProductViewer.ts` — Boilerplate abstraction for viewers
+- `src/app/hooks/index.ts` — Hook barrel export
+- `src/app/data/index.ts` — Data barrel export
+- `REFACTORING_GUIDE.md` — Documentation for adding/removing products
+- `AUDIT_REPORT_UIUX_3D.md` — Full audit report
+
+**Files Modified:**
+- `src/styles/theme.css` — Complete MONO theme + accessibility features
+- `src/styles/fonts.css` — JetBrains Mono font loading
+- `src/app/App.tsx` — ARIA landmarks + skip link
+- `src/app/components/Sidebar.tsx` — MONO styling + ARIA labels
+- `src/app/components/ProductViewer.tsx` — MONO styling + ARIA labels (refactored with registry)
+- `src/app/components/ViewerControls.tsx` — MONO styling + ARIA labels
+- `src/app/components/HermeticDoorLegend.tsx` — MONO styling
+- `src/app/components/hvac-bim-v2/overlay.tsx` — MONO styling
+- `src/app/components/hvac-bim-v2/scene.ts` — MONO labels
+- `src/app/lib/three-scene.ts` — Background fix + MONO annotation labels
+- `src/app/data/products.ts` — Added VIEWER_TYPES constant
+
+### ♿ Accessibility Improvements (WCAG 2.1 AA)
+
+- Added skip-to-content link for keyboard users
+- Added ARIA landmarks (navigation, main, region)
+- Added aria-labels to all interactive elements
+- Added aria-pressed to toggle buttons
+- Added aria-current to active navigation items
+- Changed search input to type="search"
+- Added focus-visible styling with 2px outline
+- Added @media (prefers-reduced-motion) support
+- Added @media (prefers-contrast: high) support
+- Added print styles
+
+### 🏗️ Architecture Refactoring
+
+**Problem:** ProductViewer.tsx had 270 lines with nested ternary operators for 12 viewer types.
+
+**Solution:** Registry pattern with type-safe configuration.
+
+**Benefits:**
+1. Adding new products: Only edit registry + products/index.ts
+2. Removing products: Just delete from registry
+3. Type-safe: TypeScript infers all viewer types
+4. Maintainable: Clean separation of concerns
+
+**Patterns Added:**
+- `VIEWER_REGISTRY` — Maps viewerType → Component
+- `VIEWER_TYPES` — Const array for type inference
+- `useProductViewer` hook — Abstracts Three.js boilerplate
+
+### 📦 Bundle Stats
+
+- CSS: 117.21 KB (gzip: 19.31 KB)
+- JS: 999.12 KB (gzip: 267.87 KB)
+
+---
+
 ## [2026-03-24] — HVAC System V3 "Remarkable" — Full Geometry Rewrite
 
 ### Architecture: Modular V3 Geometry System
@@ -33,6 +601,14 @@
 - Clipping: `renderer.localClippingEnabled = true`, only AHU outer shell clipped — internals always visible
 - Scale: 1 unit = 1 meter (unchanged)
 - 7 modes: Full System, Supply Air, Return Air, Refrigerant, AHU Cutaway, Floor Plan, Exploded
+
+### Later runtime note
+
+The current checked-in runtime has since moved again. As of 2026-03-25, the active viewer in
+`src/app/components/HvacSystemBIM3D.tsx` is driven by `src/app/components/hvac-bim-v2/*`,
+with 6 runtime modes (`full`, `supply`, `return`, `refrigerant`, `plan`, `exploded`) and
+5 operating scenarios (`normal`, `surgery-peak`, `purge`, `setback`, `fault`). Treat this
+2026-03-24 entry as historical architecture, not the current source of truth.
 
 ---
 
