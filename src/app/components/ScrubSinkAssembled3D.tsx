@@ -197,9 +197,14 @@ function buildSculptedBasin(scene: THREE.Object3D, cx: number): void {
   // leaving a 2-unit dark gap around every basin (visible "kapal pecah" effect).
   // Now rim outer = countertop hole size (60×45) exactly, with bevel filling
   // the seam so the basin reads as integral with the countertop slab.
+  //
+  // RESEARCH 2026-05-25: basin depth bumped from 200mm to 250mm per
+  // docs/research/2026-05-25-scrub-sink-references.md Q2. Every real
+  // reference (Avante 267mm, Belimed/Skytron ~250mm, Dolson ~250mm) is at
+  // or above 250mm to allow elbow-deep scrubbing. 200mm was too shallow.
   const bw = 60;     // matches countertop holeBasin width (was 56)
   const bd = 45;     // matches countertop holeBasin depth (was 41)
-  const bh = 22;
+  const bh = 25;     // 250mm depth (was 22 = 220mm). Real spec: 250-280mm.
   const baseY = Y_CT_TOP - bh;
 
   // Rim profile: rebated cross-section (cove curve into basin)
@@ -934,12 +939,34 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
   divider.castShadow = divider.receiveShadow = true;
   cabinetGroup.add(divider);
 
-  // 4 hinged doors (sculpted — these ARE hero pieces)
-  const doorW = (W - 4) / 4;
-  buildSculptedDoor(cabinetGroup, -3 * doorW / 2 - 1, doorW, 'right');
-  buildSculptedDoor(cabinetGroup, -doorW / 2, doorW, 'left');
-  buildSculptedDoor(cabinetGroup, doorW / 2, doorW, 'right');
-  buildSculptedDoor(cabinetGroup, 3 * doorW / 2 + 1, doorW, 'left');
+  // 4 hinged doors REMOVED 2026-05-25 per research findings (see
+  // docs/research/2026-05-25-scrub-sink-references.md). Real surgical
+  // scrub sinks NEVER have hinged doors with D-pulls — they have either
+  // seamless welded SS front panels (Asian/Indonesian style — Dolson
+  // Nusantara, Rooe BSS100) or removable hidden-latch kick panels (US/EU
+  // style — Belimed, MAC Medical, Skytron). Our reference target is the
+  // Dolson DSR-style 1600×573×1600mm freestanding unit, so we use a
+  // seamless welded SS front face.
+  //
+  // Front face: single welded SS panel from base to countertop bottom,
+  // spanning the full width. No vertical reveal lines, no handles.
+  // Brushed #4 finish (matSSMatte) per research Q8 — mirror polish is
+  // decorative-only and shows water spots in clinical use.
+  const frontPanel = new THREE.Mesh(
+    new THREE.BoxGeometry(W - 0.5, T_CAB - 1, 1),
+    cabMatte,
+  );
+  frontPanel.position.set(0, T_BASE + (T_CAB - 1) / 2 + 0.5, D / 2 - 0.5);
+  frontPanel.castShadow = frontPanel.receiveShadow = true;
+  cabinetGroup.add(frontPanel);
+
+  // Subtle horizontal seam line at base — purely visual reference for
+  // where a removable kick panel would be on a US-spec unit. ~150mm above
+  // floor (Y = 18). Reads as a brushed seam, not a door reveal.
+  const seamGeo = new THREE.BoxGeometry(W - 1, 0.15, 1.2);
+  const seam = new THREE.Mesh(seamGeo, matSSPolished());
+  seam.position.set(0, 18, D / 2);
+  cabinetGroup.add(seam);
 
   // Door rail at top of cabinet (thin polished accent — BoxGeometry)
   const rail = new THREE.Mesh(new THREE.BoxGeometry(W, 1.2, 1), cabPolish);
