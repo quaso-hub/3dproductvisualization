@@ -26,7 +26,8 @@ interface Props { product: Product }
 // -─ Dimensi pintu (scene units, 1 unit = 10mm) -------
 const DW  = 160;  // lebar pintu
 const DH  = 210;  // tinggi pintu
-const DT  = 10;   // tebal panel pintu
+const DT  = 6;    // tebal panel pintu (60 mm — research-driven, was 10/100mm)
+                  // Real spec: BCMS 50mm, TanAc 60mm, Lesho 50mm. 100mm was thick.
 const DOOR_OFFSET = 0;    // Pintu dalam posisi tertutup (closed)
 
 // Window dalam pintu
@@ -37,9 +38,16 @@ const WY  = 150;
 const WT  = 0.6;
 
 // Housing overhead - large D-profile aluminum extrusion
-const HW  = DW + 20;   // 180 - just wider than frame
-const HH  = 42;        // tall (≈420mm real-world)
-const HDT = 28;        // deep profile
+// Housing — overhead operator track + motor enclosure.
+// BUGFIX 2026-05-25 (research-driven): previously HW=DW+20 (too narrow —
+// real housing must span door-width × ~2 because door slides INTO it).
+// HH=42 was too tall (real housings are 180-280mm = 18-28 scene units).
+// HDT=28 was slightly thick (real ~200mm = 20 units). Fixed to match
+// Portalp HDS / Lesho / TanAc datasheets.
+// See: docs/research/2026-05-25-hermetic-door-references.md (§3, §6).
+const HW  = DW * 2 - 10;  // 310 — door-width × 2 so door can slide INTO housing
+const HH  = 22;           // 220mm — real-world housing height range 180-280
+const HDT = 20;           // 200mm — real-world housing depth Portalp 201mm
 
 // Frame
 const FT  = 8;
@@ -259,24 +267,36 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   pbStripe.userData.partId = 'pb-stripe';
   scene.add(pbStripe);
 
-  // - 5. Vertical bar handle (right side, mid-height) --─
+  // ── 5. RECESSED FLUSH PULL (cleanroom-correct, NOT a protruding bar) ──
+  // BUGFIX 2026-05-25 (research-driven): previously used a vertical
+  // CylinderGeometry(0.9, 0.9, 28) protruding 3+ units from door face plus
+  // 2 horizontal bracket cylinders. Real OR hermetic doors are FLUSH —
+  // confirmed across TanAc TH8 ("60mm flush door leaf and flush integrated
+  // components"), Door Studio Asia, Grupsa, Portalp, Manusa, Dortek. The
+  // protruding bar handle was the user's "kapal pecah" complaint.
+  // Replacement: recessed pull pocket (rectangular cutout reading) on
+  // cleanroom side. Real hermetic doors use either a finger pull (palm-size
+  // rectangular recess ~120×40mm) or a low-profile push-plate.
+  // See: docs/research/2026-05-25-hermetic-door-references.md.
   const handleMat = matSS(0.1, 0.94);
-  const handleGeo = new THREE.CylinderGeometry(0.9, 0.9, 28, 16);
-  const handleBar = new THREE.Mesh(handleGeo, handleMat);
-  // No rotation - cylinder stands vertical by default
-  handleBar.position.set(DW / 2 - 12, 0, DT / 2 + 3);
-  handleBar.userData.partId = 'handle';
-  scene.add(handleBar);
-
-  // Handle wall-mount brackets (horizontal pins into door face)
-  const bracketGeo = new THREE.CylinderGeometry(1.2, 1.2, 5, 12);
-  [-12, 12].forEach((yOff) => {
-    const bracket = new THREE.Mesh(bracketGeo, handleMat);
-    bracket.rotation.x = Math.PI / 2;
-    bracket.position.set(DW / 2 - 12, yOff, DT / 2 + 1);
-    bracket.userData.partId = 'handle';
-    scene.add(bracket);
+  // Outer recessed bezel — sunken pocket frame, slightly proud of door face
+  const pullPocketGeo = new THREE.BoxGeometry(2.5, 12, 0.4);
+  const pullPocket = new THREE.Mesh(pullPocketGeo, handleMat);
+  pullPocket.position.set(DW / 2 - 8, 0, DT / 2 + 0.2);
+  pullPocket.userData.partId = 'handle';
+  pullPocket.castShadow = true;
+  scene.add(pullPocket);
+  // Inner dark recess — pocket interior (shadow read for finger grip)
+  const pullRecessMat = new THREE.MeshStandardMaterial({
+    color: 0x1a1d22,
+    roughness: 0.85,
+    metalness: 0.15,
   });
+  const pullRecessGeo = new THREE.BoxGeometry(1.4, 10, 0.45);
+  const pullRecess = new THREE.Mesh(pullRecessGeo, pullRecessMat);
+  pullRecess.position.set(DW / 2 - 8, 0, DT / 2 - 0.05);
+  pullRecess.userData.partId = 'handle';
+  scene.add(pullRecess);
 
   // - 6. Overhead housing - D-profile aluminum extrusion ---─
   const housingMat = matHousing();

@@ -32,16 +32,21 @@ import { ViewerControls } from './ViewerControls';
 interface Props { product: Product }
 
 // ── Dimensi (mirror dari Assembled) ────────────────────
+// BUGFIX 2026-05-25: synced with Assembled per research findings:
+//   - DT 10 → 6 (50-60mm real-world per BCMS/TanAc/Lesho)
+//   - HW DW+20 → DW*2-10 (housing must span door slide travel)
+//   - HH 42 → 22 (180-280mm real-world per Portalp HDS)
+//   - HDT 28 → 20 (200mm real-world Portalp standard)
 const DW = 160;
 const DH = 210;
-const DT = 10;
+const DT = 6;
 const WW = 30;
 const WH = 40;
 const WX = 0;
 const WY = 150;
-const HW = DW + 20;
-const HH = 42;
-const HDT = 28;
+const HW = DW * 2 - 10;
+const HH = 22;
+const HDT = 20;
 const FT = 8;
 
 // ── Explosion offsets ─────────────────────────────────
@@ -164,6 +169,7 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.z = currentZ;
+    mesh.userData.partId = 'door-panel';
     mesh.castShadow = mesh.receiveShadow = true;
     scene.add(mesh);
 
@@ -190,6 +196,7 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
     glassMat.color.setHex(glassLayer.color);
     const glassMesh = new THREE.Mesh(glassGeo, glassMat);
     glassMesh.position.set(WX, wyC, glassZ);
+    glassMesh.userData.partId = 'lead-glass';
     scene.add(glassMesh);
 
     // Outline
@@ -218,6 +225,7 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
   const sillGeo = new THREE.BoxGeometry(DW + FT * 2, FT, DT + 4);
   const sillExploded = new THREE.Mesh(sillGeo, frameMat);
   sillExploded.position.set(0, -DH / 2 - FT / 2 - FRAME_RADIAL, frameZ);
+  sillExploded.userData.partId = 'frame';
   scene.add(sillExploded);
   dashedConnector(scene,
     new THREE.Vector3(0, -DH / 2 - FT / 2 - FRAME_RADIAL, frameZ),
@@ -228,6 +236,7 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
   const jambGeo = new THREE.BoxGeometry(FT, DH + FT, DT + 4);
   const jambL = new THREE.Mesh(jambGeo, frameMat);
   jambL.position.set(-DW / 2 - FT / 2 - FRAME_RADIAL, 0, frameZ);
+  jambL.userData.partId = 'frame';
   scene.add(jambL);
   dashedConnector(scene,
     new THREE.Vector3(-DW / 2 - FT / 2 - FRAME_RADIAL, 0, frameZ),
@@ -237,6 +246,7 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
   // Right jamb: flies right
   const jambR = jambL.clone();
   jambR.position.x = DW / 2 + FT / 2 + FRAME_RADIAL;
+  jambR.userData.partId = 'frame';
   scene.add(jambR);
   dashedConnector(scene,
     new THREE.Vector3(DW / 2 + FT / 2 + FRAME_RADIAL, 0, frameZ),
@@ -265,6 +275,7 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
   const housing = new THREE.Mesh(housingGeo, matHousing());
   housing.position.set(0, housingY_exploded, DT / 2 - 4);
   housing.castShadow = true;
+  housing.userData.partId = 'housing';
   scene.add(housing);
   dashedConnector(scene,
     new THREE.Vector3(0, housingY_exploded, DT / 2 - 4),
@@ -278,6 +289,7 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
   });
   const indicator = new THREE.Mesh(indicatorGeo, indicatorMat);
   indicator.position.set(0, housingY_exploded + HH * 0.6, 0.15);
+  indicator.userData.partId = 'housing';
   scene.add(indicator);
 
   // ════════════════════════════════════════════════════
@@ -291,6 +303,7 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
   const trackGeo = new THREE.BoxGeometry(HW - 6, 4, 5);
   const track = new THREE.Mesh(trackGeo, trackMat);
   track.position.set(0, trackY_exploded, -2);
+  track.userData.partId = 'track';
   scene.add(track);
   dashedConnector(scene,
     new THREE.Vector3(0, trackY_exploded, -2),
@@ -298,19 +311,36 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
   annotItems.push({ anchor: new THREE.Vector3(0, trackY_exploded, -2), label: 'Sliding Track Rail' });
 
   // ════════════════════════════════════════════════════
-  // 6. HANDLE — flies forward (Z+)
+  // 6. RECESSED FLUSH PULL — synced with Assembled (research-driven)
   // ════════════════════════════════════════════════════
   const handleMat = matSS(0.1, 0.94);
-  const handleGeo = new THREE.CylinderGeometry(0.9, 0.9, 28, 16);
-  const handleX_assembled = DW / 2 - 12;
-  const handleZ_exploded = DT / 2 + 3 + HANDLE_FORWARD;
-  const handle = new THREE.Mesh(handleGeo, handleMat);
-  handle.position.set(handleX_assembled, 0, handleZ_exploded);
-  scene.add(handle);
+  const handleX_assembled = DW / 2 - 8;
+  const handleZ_exploded = DT / 2 + 0.2 + HANDLE_FORWARD;
+
+  // Outer recessed bezel — sunken pocket frame
+  const pullPocketGeo = new THREE.BoxGeometry(2.5, 12, 0.4);
+  const pullPocket = new THREE.Mesh(pullPocketGeo, handleMat);
+  pullPocket.position.set(handleX_assembled, 0, handleZ_exploded);
+  pullPocket.castShadow = true;
+  pullPocket.userData.partId = 'handle';
+  scene.add(pullPocket);
+
+  // Inner dark recess — pocket interior
+  const pullRecessMat = new THREE.MeshStandardMaterial({
+    color: 0x1a1d22, roughness: 0.85, metalness: 0.15,
+  });
+  const pullRecess = new THREE.Mesh(
+    new THREE.BoxGeometry(1.8, 11.2, 0.35),
+    pullRecessMat,
+  );
+  pullRecess.position.set(handleX_assembled, 0, handleZ_exploded - 0.25);
+  pullRecess.userData.partId = 'handle';
+  scene.add(pullRecess);
+
   dashedConnector(scene,
     new THREE.Vector3(handleX_assembled, 0, handleZ_exploded),
-    new THREE.Vector3(handleX_assembled, 0, DT / 2 + 3));
-  annotItems.push({ anchor: new THREE.Vector3(handleX_assembled, 0, handleZ_exploded), label: 'Handle SS' });
+    new THREE.Vector3(handleX_assembled, 0, DT / 2 + 0.2));
+  annotItems.push({ anchor: new THREE.Vector3(handleX_assembled, 0, handleZ_exploded), label: 'Recessed Pull (SS Flush)' });
 
   // ════════════════════════════════════════════════════
   // 7. SENSOR boxes — fly outward (X)
@@ -321,6 +351,7 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
     const sensor = new THREE.Mesh(sensorGeo, matSensor());
     const xExploded = xPos + direction * SENSOR_OUT;
     sensor.position.set(xExploded, 0, -12);
+    sensor.userData.partId = 'sensor';
     scene.add(sensor);
     dashedConnector(scene,
       new THREE.Vector3(xExploded, 0, -12),
@@ -340,9 +371,11 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
   const sensorY_exploded = housingY_exploded + HH * 0.55;
   const sGreen = new THREE.Mesh(new THREE.SphereGeometry(1.4, 12, 8), matGreen);
   sGreen.position.set(-HW / 2 + 10, sensorY_exploded, 0.15);
+  sGreen.userData.partId = 'sensor';
   scene.add(sGreen);
   const sAmber = new THREE.Mesh(new THREE.SphereGeometry(1.4, 12, 8), matAmber);
   sAmber.position.set(-HW / 2 + 18, sensorY_exploded, 0.15);
+  sAmber.userData.partId = 'sensor';
   scene.add(sAmber);
 
   // ════════════════════════════════════════════════════
@@ -371,6 +404,7 @@ function buildExplodedScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, l
     matLead(),
   );
   pbStripe.position.set(0, pbStripeY_assembled, pbStripeZ_exploded);
+  pbStripe.userData.partId = 'pb-stripe';
   scene.add(pbStripe);
   dashedConnector(scene,
     new THREE.Vector3(0, pbStripeY_assembled, pbStripeZ_exploded),
