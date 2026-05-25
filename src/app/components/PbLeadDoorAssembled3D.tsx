@@ -55,6 +55,10 @@ const KPH = 26;
 const WALL_W = DW + 80;
 const WALL_H = DH + 60;
 const WALL_T = 8;
+// (WALL_* retained as defined-but-unused constants — wall slab itself was
+//  removed Session 10 Item 3. Some legacy code may still reference these
+//  for camera framing math; safe to leave defined.)
+void WALL_W; void WALL_H; void WALL_T;
 const HINGE_X = -DW / 2;
 const HANDLE_X = DW / 2 - 4;
 
@@ -582,30 +586,24 @@ function buildSculptedHinges(scene: THREE.Object3D, leafGroup: THREE.Object3D): 
 
 // ── Lead-lined jamb continuity (BoxGeometry — thin tabs/strips) ──
 // Tabs hanya visual hint, no chamfer needed. Save vertex budget.
-function buildSculptedLeadFrameContinuity(scene: THREE.Object3D, wallZ: number): void {
+function buildSculptedLeadFrameContinuity(scene: THREE.Object3D): void {
   const lead = matLead();
-  const tabT = 0.35;
-  const tabZ = wallZ + WALL_T / 2 - tabT / 2;
 
-  // Pb tabs at perimeter (BoxGeometry — flat strips peeking from drywall)
-  // Left jamb side
-  addMesh(scene, new THREE.BoxGeometry(1.3, DH + 4, tabT), lead, -(DW / 2 + FW + 0.3), 0, tabZ);
-  // Right jamb side
-  addMesh(scene, new THREE.BoxGeometry(1.3, DH + 4, tabT), lead, DW / 2 + FW + 0.3, 0, tabZ);
-  // Header top
-  addMesh(scene, new THREE.BoxGeometry(DW + FW * 2 + 4, 1.3, tabT), lead, 0, DH / 2 + FW + 0.3, tabZ);
+  // (Pb perimeter tabs at drywall removed Session 10 Item 3 — they were
+  //  attached to the wall slab which is also removed. They appeared as
+  //  thin "stray bars" floating behind the door frame. The lead-shielding
+  //  narrative is preserved by the throat tabs and threshold nosing below
+  //  which DO sit inside the frame itself.)
 
-  // Pb wrap inside jamb throat (BoxGeometry flat strips)
+  // Pb wrap inside jamb throat (BoxGeometry flat strips) — STAYS
   const throatZ = -FD / 2 + 0.4;
   addMesh(scene, new THREE.BoxGeometry(FW * 0.45, DH, 0.35), lead, -(DW / 2 + FW * 0.275), 0, throatZ);
   addMesh(scene, new THREE.BoxGeometry(FW * 0.45, DH, 0.35), lead, DW / 2 + FW * 0.275, 0, throatZ);
   addMesh(scene, new THREE.BoxGeometry(DW, FW * 0.45, 0.35), lead, 0, DH / 2 + FW * 0.275, throatZ);
 
-  // Threshold lead nosing (BoxGeometry)
+  // Threshold lead nosing (BoxGeometry) — STAYS
   const sillY = -(DH / 2 + FW * 0.4) + 0.2;
   addMesh(scene, new THREE.BoxGeometry(DW + FW * 2, 0.4, FD - 1), lead, 0, sillY, 0);
-  // Vertical turn-up (BoxGeometry)
-  addMesh(scene, new THREE.BoxGeometry(DW + FW * 2, 1.2, 0.35), lead, 0, sillY + 0.6, wallZ + WALL_T / 2 - 0.2);
 }
 
 // ── Scene builder ────────────────────────────────────────────
@@ -668,45 +666,13 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): SceneHan
   floor.receiveShadow = true;
   scene.add(floor);
 
-  // ── Wall + lead continuity ──
-  const wallZ = -(DT / 2 + FD / 2 + WALL_T / 2 + 0.3);
-  // Wall slab (BoxGeometry — large flat slab, chamfer wasted at this scale)
-  const wall = new THREE.Mesh(new THREE.BoxGeometry(WALL_W, WALL_H, WALL_T), matWall());
-  wall.position.set(0, 0, wallZ);
-  wall.receiveShadow = true;
-  scene.add(wall);
+  // ── (Wall slab + architrave + drywall lead tabs removed Session 10 Item 3 —
+  //     user feedback: "tembok belakang tidak jelas menghalangi" + "bar besi
+  //     tipis keluar entah apa". Frame (kusen) below remains as the structural
+  //     anchor; the door now reads as a standalone hardware install.)
 
-  // Architrave (rounded molding profile around opening)
-  const archProfile = new THREE.Shape();
-  archProfile.moveTo(0, 0);
-  archProfile.lineTo(1.6, 0);
-  archProfile.lineTo(1.6, 0.6);
-  archProfile.quadraticCurveTo(1.6, 1.2, 1.0, 1.2);
-  archProfile.lineTo(0, 1.2);
-  archProfile.closePath();
-
-  // Top architrave
-  const archTopGeo = new THREE.ExtrudeGeometry(archProfile, { depth: DW + FW * 2 + 2, bevelEnabled: false });
-  archTopGeo.rotateY(Math.PI / 2);
-  archTopGeo.translate((DW + FW * 2 + 2) / 2, 0, 0);
-  const archTop = new THREE.Mesh(archTopGeo, matFrame());
-  archTop.position.set(-(DW + FW * 2 + 2) / 2, DH / 2 + FW + 0.8, wallZ + WALL_T / 2 + 0.6);
-  archTop.castShadow = true;
-  scene.add(archTop);
-
-  // Side architraves
-  const archSideGeo = new THREE.ExtrudeGeometry(archProfile, { depth: DH + FW * 2 + 2, bevelEnabled: false });
-  archSideGeo.rotateY(Math.PI / 2);
-  archSideGeo.rotateZ(Math.PI / 2);
-  for (const ax of [-(DW / 2 + FW + 0.8), DW / 2 + FW + 0.8]) {
-    const archSide = new THREE.Mesh(archSideGeo.clone(), matFrame());
-    archSide.position.set(ax, -(DH + FW * 2 + 2) / 2, wallZ + WALL_T / 2 + 0.6);
-    archSide.castShadow = true;
-    scene.add(archSide);
-  }
-
-  // Lead continuity
-  buildSculptedLeadFrameContinuity(scene, wallZ);
+  // Lead continuity (throat + threshold only — perimeter drywall tabs removed)
+  buildSculptedLeadFrameContinuity(scene);
 
   // ── Frame (jambs + header + threshold) — HERO chamfered, but segs=2 ──
   const frameGroup = new THREE.Group();
@@ -880,11 +846,10 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): SceneHan
   buildSculptedCloser(closerGroup);
 
   // ── Annotations ──
-  // Continuity-focused: every edge, hardware cutout, and frame-wall overlap is
+  // Continuity-focused: every edge, hardware cutout, and frame overlap is
   // annotated so the radiation-shielding narrative is auditable from any camera angle.
   // Reviewer can verify: Pb wraps tepi daun + jamb throat + sill, and is preserved
   // across hinge / closer / lockset cutouts (kritik v1 §1-3).
-  const wallZSurface = -(DT / 2 + FD / 2 + WALL_T / 2 + 0.3) + WALL_T / 2;
   placeAnnotations(
     scene,
     [
@@ -904,7 +869,6 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): SceneHan
       { partId: 'lead-stripes', anchor: new THREE.Vector3(HINGE_X + 1, 0, 0), label: '2 mmPb continuous · Hinge Edge (no break at knuckle cutout)' },
       { partId: 'lead-stripes', anchor: new THREE.Vector3(HANDLE_X - 1, 0, 0), label: '2 mmPb continuous · Latch Edge (mortise pocket lined)' },
       { partId: 'view-glass',   anchor: new THREE.Vector3(GW / 2 + 1, GY, -DT / 4 + 0.3), label: 'Pb rebate frame · View Glass overlap' },
-      { partId: 'frame',        anchor: new THREE.Vector3(-(DW / 2 + FW / 2), DH / 4, wallZSurface), label: 'Frame-Wall overlap · Pb tab wraps drywall' },
     ],
     DW / 2 + 60,
     [-DH / 2, DH / 2 + FW + 5],
