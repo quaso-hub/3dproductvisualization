@@ -1,117 +1,152 @@
-# 3D Product Catalog — Visualisasi Katalog Medis
+# 3D Product Visualization
 
-Aplikasi React + Three.js untuk visualisasi 3D produk bangunan medis (panel sandwich, pintu hermetic, aluminium profile) dengan kualitas katalog profesional untuk kebutuhan print & marketing.
-
-Figma: https://www.figma.com/design/gU5gGqcZ150U7FsMFd3kfa/3D-Product-Visualization
+Industrial-grade interactive 3D catalog for medical equipment and modular operating theatre products. Built with Three.js WebGL, React 18, and TypeScript.
 
 ---
 
-## Stack
-
-| Teknologi | Versi | Kegunaan |
-|-----------|-------|---------|
-| React | 18 | Framework UI |
-| TypeScript | — | Type safety |
-| Three.js | 0.183 | Rendering 3D |
-| Vite | 6 | Build tool (port 5173) |
-| Tailwind CSS | 4 | Styling |
+## Quick Start
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
-npm run build
+npm run dev       # → http://localhost:5175
+```
+
+**Production build:**
+```bash
+npx vite build --outDir dist-new
+npx vite preview --outDir dist-new
 ```
 
 ---
 
-## Arsitektur
+## Product Catalogue
+
+| Category | Products |
+|---|---|
+| **Wall Panel** | Sandwich Radiasi |
+| **Profile** | Curving R40 |
+| **Doors** | Hermetic Door · PB Lead Door |
+| **Fixtures** | Scrub Sink · Pass Box |
+| **Cabinets** | PACS Cabinet |
+| **HVAC** | Return Air Grille · LAF System · HVAC BIM |
+| **Ceiling** | Ceiling Panel |
+| **Medical** | X-Ray Viewer · Surgical Control Panel |
+
+**17 products** — assembled and exploded views with multiple camera presets per product.
+
+---
+
+## Features
+
+- **Assembled View** — complete product visualization in assembled state
+- **Exploded View** — component-level breakdown with leader lines and annotations
+- **Highlight System** — hover-to-highlight on individual product components
+- **Camera Presets** — front, side, top, isometric views per product
+- **Open-90 Pattern** — interactive door opening animation for applicable products
+- **PNG Export** — high-resolution screenshot of current viewport
+- **Lazy Loading** — on-demand viewer code-splitting (~1–22 KB per viewer)
+- **Mobile Optimized** — bottom-sheet overlay with snap points for touch devices
+- **PBR Materials** — physically based rendering with environment lighting
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Runtime | React 18 with TypeScript |
+| 3D Engine | Three.js (WebGL renderer) |
+| Build | Vite |
+| Styling | Tailwind CSS + shadcn/ui primitives |
+| Animation | React Spring · GSAP |
+| Code Quality | ESLint · Prettier |
+
+---
+
+## Project Structure
 
 ```
-src/app/
-  data/products.ts          # Type definitions only
-  products/
-    index.ts                # PRODUCT REGISTRY — edit ini saat tambah produk
-    sandwich-radiasi.ts
-    sandwich-standard.ts
-    cleanroom.ts
-    curving-r40.ts
-    hermetic-door.ts
-  lib/
-    three-scene.ts          # Shared Three.js engine (renderer, lights, controls, helpers)
-  hooks/
-    useThreeScene.ts        # Scene lifecycle hook
-  components/
-    Sidebar.tsx
-    ProductViewer.tsx       # Routing viewer berdasarkan viewerType
-    AssembledPanel3D.tsx / ExplodedPanel3D.tsx
-    CurvingAssembled3D.tsx / CurvingExploded3D.tsx
-    HermeticDoorAssembled3D.tsx / HermeticDoorExploded3D.tsx
-    ViewerControls.tsx      # Camera preset + download bar (reusable)
-    WallPanelViewer.tsx     # Legacy 2D — jangan diubah
+src/
+├── app/
+│   ├── components/          # 3D viewer components per product
+│   ├── products/            # Product definitions and metadata
+│   ├── data/                # Registry, lazy-load routes, viewer map
+│   ├── hooks/               # useThreeScene, useHighlightController
+│   ├── lib/                 # three-scene utils, camera presets, PNG export
+├── styles/                  # Tailwind theme configuration
+public/
+├── models/                  # glTF/GLB 3D assets
+├── textures/                # PBR texture maps
+docs/
+├── CONTEXT.md               # Live project state (auto-updated)
+├── PRD.md                   # Product requirements
+├── SRD.md                   # System reference design
+├── research/                # Per-product research notes with datasheet references
+.opencode/
+├── session-handoffs/        # Context persistence across sessions
+├── skills/                  # Project-local agent skills
 ```
 
 ---
 
-## Produk (5)
+## Documentation
 
-| ID | Nama | Kategori | viewerType |
-|----|------|----------|------------|
-| `sandwich-radiasi` | Sandwich + Radiasi | Panel Dinding | panel (default) |
-| `sandwich-standard` | Sandwich Standard | Panel Dinding | panel (default) |
-| `cleanroom` | Cleanroom Panel | Cleanroom | panel (default) |
-| `curving-r40` | Curving R40 | Pintu & Partisi | `curving` |
-| `hermetic-door` | Hermetic Auto Sliding Door | Pintu & Partisi | `hermetic-door` |
-
----
-
-## Menambah Produk Baru
-
-**Panel biasa** (tidak perlu custom viewer):
-
-1. Buat `src/app/products/<slug>.ts`
-2. Register di `src/app/products/index.ts`
-
-**Custom viewer** (bentuk 3D unik):
-
-1. Tambah literal di `viewerType` union (`data/products.ts`)
-2. Buat `<Type>Assembled3D.tsx` + `<Type>Exploded3D.tsx`
-3. Routing di `ProductViewer.tsx`
-4. Register produk
-
-Template dan detail lengkap → [`.github/copilot-instructions.md`](.github/copilot-instructions.md)
+| Document | Description |
+|---|---|
+| [docs/INDEX.md](docs/INDEX.md) | Navigation hub — start here |
+| [docs/CONTEXT.md](docs/CONTEXT.md) | Auto-updated live state, recent changes, open tasks |
+| [docs/PRD.md](docs/PRD.md) | Product requirements document |
+| [docs/SRD.md](docs/SRD.md) | System reference design and architecture |
+| [docs/MEMORY.md](docs/MEMORY.md) | Project context and history |
+| [docs/HANDOFF.md](docs/HANDOFF.md) | Developer onboarding and handoff guide |
+| [CHANGELOG.md](CHANGELOG.md) | Full commit history |
 
 ---
 
-## Konvensi
+## Performance
 
-- Skala: **1 scene unit = 10mm** (pintu 1600×2100mm → DW=160, DH=210)
-- Semua teks UI & spec dalam **Bahasa Indonesia**
-- **Tidak ada auto-rotation** — hanya manual OrbitControls
-- Download: `{product.id}-{view}-{angle}.png`
-- Jangan gabung assembled/exploded dalam satu komponen
-- `WallPanelViewer.tsx` adalah legacy — jangan dimodifikasi
-
----
-
-## Dokumentasi Teknis
-
-| File | Isi |
-|------|-----|
-| [`.github/copilot-instructions.md`](.github/copilot-instructions.md) | Arsitektur, API engine, pattern, skills |
-| [`VISUALIZATION_3D_GUIDE.md`](VISUALIZATION_3D_GUIDE.md) | Lighting, material, annotation (`placeAnnotations`), pitfalls |
-| [`CHANGELOG.md`](CHANGELOG.md) | Riwayat perubahan per sesi |
+| Metric | Value |
+|---|---|
+| Initial Load | ~120 KB gzipped |
+| Per-Viewer (on-demand) | 1–22 KB |
+| Target FPS | 60 |
+| WebGL Contexts | 1 active, disposed on unmount |
+| Pixel Ratio Cap | 2 (performance cap) |
 
 ---
 
-## Skills AI (wajib diaktifkan)
+## Development
 
-| Pekerjaan | Skill |
-|-----------|-------|
-| Three.js scene / geometry | `@threejs-skills` + `@3d-web-experience` |
-| Komponen React / styling | `@frontend-design` + `@ui-ux-pro-max` |
-| GLSL shader / material custom | `@shader-programming-glsl` |
-| UI compliance / aksesibilitas | `@web-design-guidelines` |
-| Google Stitch UI | `@stitch-ui-design` + `@design-md` |
-| Orkestrasi desain multi-step | `@design-orchestration` |
+```bash
+npm run dev          # development server
+npm run build        # production build
+npm run preview      # preview production build
+node docs/sync-context.js   # update CONTEXT.md
+```
 
-Skills: `C:\Users\warma\.claude\skills\` · `C:\Users\warma\.gemini\antigravity\skills\`
+Visual inspection scripts live at the repo root as `verify-*.cjs` files.
+
+---
+
+## Browser Support
+
+Chrome 90+ · Firefox 88+ · Safari 14+ · Edge 90+. WebGL 1.0 required.
+
+---
+
+## Recent Commits
+
+| SHA | Description |
+|---|---|
+| `442a026` | Session 11 Item 1: Hermetic Door fix — recessed pull, housing right-size, exploded sync |
+| `ed14bd1` | Session 11 Item 3: PB Lead Door fix — closer position, wall removal, exploded sync |
+| `68b6215` | Session 11 Item 6 followup: ScrubSink real-product alignment (research-driven) |
+| `589ad43` | Session 11 Item 6: ScrubSink — 3 visual bugs + 2 polish details |
+| `fa747c8` | Session 10 Item 4: X-Ray Viewer rebuild (research-driven negatoscope) |
+| `70bf146` | Session 10 Item 3: PbLead Door rebuild (wall + stray bar removed, exploded full-component) |
+
+Full history in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+*Last updated: 2026-05-26*
