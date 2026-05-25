@@ -1,0 +1,99 @@
+/* highlight.css — global styles for label highlight states.
+ *
+ * Owned by `lib/highlight-controller.ts`. The controller adds/removes
+ * data-highlight-state attribute to label wrappers (created by
+ * `placeAnnotations` in `lib/three-scene.ts`).
+ *
+ * Variables fed from viz-interaction-tokens.ts at build-time via
+ * inline style on body element OR Tailwind config (TBD per project
+ * pref). For now, hard-coded to match the JS tokens exactly.
+ */
+
+/* ── Label states ─────────────────────────────────────────── */
+
+.viz-label {
+  /* Base state baked into createLabel(); these are progressive
+     enhancements on top of the inline cssText. */
+  transition:
+    transform 250ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 250ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 250ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, box-shadow, background-color, opacity;
+}
+
+/* Hover (pointer fine, no pin yet) */
+.viz-label[data-highlight-state='hover'] {
+  background: rgba(255, 255, 255, 1) !important;
+  border-color: #0ea5e9 !important;
+  box-shadow: 0 4px 14px -2px rgba(14, 165, 233, 0.4),
+    0 0 0 1px #0ea5e9 inset;
+  transform: scale(1.06);
+  z-index: 11;
+}
+
+/* Pinned (clicked / tapped) — stronger inverted look + persistent */
+.viz-label[data-highlight-state='pinned'] {
+  background: #0c1117 !important;
+  color: #f8fafc !important;
+  border-color: #0ea5e9 !important;
+  box-shadow: 0 6px 18px -2px rgba(14, 165, 233, 0.55),
+    0 0 0 2px #0ea5e9;
+  transform: scale(1.06);
+  z-index: 12;
+}
+
+/* Pinned label gets a tiny × clear button injected by controller */
+.viz-label[data-highlight-state='pinned']::after {
+  content: ' ×';
+  display: inline-block;
+  margin-left: 6px;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+/* Dim (some other part is highlighted, this label is in background) */
+.viz-label[data-highlight-state='dim'] {
+  opacity: 0.35;
+  filter: saturate(0.5);
+}
+
+/* Idle = inherit base styles, no override needed */
+
+/* ── Reduced motion ─────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .viz-label {
+    transition: none !important;
+  }
+  .viz-label[data-highlight-state='hover'],
+  .viz-label[data-highlight-state='pinned'] {
+    transform: none !important;
+  }
+}
+
+/* ── Coarse pointer (touch) — disable hover, larger touch target ── */
+
+@media (pointer: coarse) {
+  .viz-label[data-highlight-state='hover'] {
+    /* Mobile: hover is rarely meaningful; show as plain idle,
+       only pin states render distinct. */
+    background: rgba(255, 255, 255, 0.92) !important;
+    border-color: rgba(0, 0, 0, 0.12) !important;
+    box-shadow: none;
+    transform: none;
+  }
+  .viz-label {
+    /* Bigger tap target — labels above 44px tall when text is short.
+       padding bump from 3px 10px → 8px 14px on touch. */
+    padding: 8px 14px !important;
+    font-size: 11px !important;
+  }
+}
+
+/* ── Canvas cursor when hovering an interactive part ───────── */
+
+.viz-canvas-hover {
+  cursor: pointer;
+}
