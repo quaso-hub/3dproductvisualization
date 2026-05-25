@@ -6,7 +6,7 @@ const path = require('path');
 const OUT = path.join(__dirname, 'visual-inspection-screenshots-pblead-audit');
 if (!fs.existsSync(OUT)) fs.mkdirSync(OUT, { recursive: true });
 
-const BASE = 'http://127.0.0.1:4180';
+const BASE = 'http://localhost:4180';
 
 async function clickProductSidebar(page, productName) {
   return await page.evaluate((name) => {
@@ -37,49 +37,33 @@ async function clickButtonByText(page, txt) {
     defaultViewport: { width: 1600, height: 900 },
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
-
-  const errors = [];
   const page = await browser.newPage();
-  page.on('pageerror', (e) => errors.push({ type: 'pageerror', msg: e.message }));
-
   await page.goto(BASE, { waitUntil: 'networkidle2' });
   await new Promise((r) => setTimeout(r, 3000));
 
-  await clickProductSidebar(page, 'PB Lead Door');
+  const ok = await clickProductSidebar(page, 'PB Lead Door');
+  console.log('Sidebar click:', ok);
   await new Promise((r) => setTimeout(r, 3000));
 
-  // ASSEMBLED - all camera angles
   await clickButtonByText(page, 'ASSEMBLED');
   await new Promise((r) => setTimeout(r, 2500));
-  await page.screenshot({ path: path.join(OUT, '01-assembled-default.png') });
 
-  for (const preset of ['ISOMETRIC', 'TAMPAK DEPAN', 'TAMPAK SAMPING', 'DETAIL ATAS', 'DETAIL CLOSER', 'DETAIL JENDELA', 'DETAIL LEAD EDGE']) {
-    const ok = await clickButtonByText(page, preset);
-    if (ok) {
-      await new Promise((r) => setTimeout(r, 1500));
-      const slug = preset.toLowerCase().replace(/\s+/g, '-');
-      await page.screenshot({ path: path.join(OUT, `02-assembled-${slug}.png`) });
-      console.log(`assembled ${preset}`);
+  for (const preset of ['ISOMETRIC', 'TAMPAK DEPAN', 'TAMPAK SAMPING', 'CLOSER DETAIL', 'OPEN 90°']) {
+    if (await clickButtonByText(page, preset)) {
+      await new Promise((r) => setTimeout(r, 2000));
+      await page.screenshot({ path: path.join(OUT, `assembled-${preset.toLowerCase().replace(/\s+/g, '-').replace(/°/, 'deg')}.png`) });
     }
   }
 
-  // EXPLODED
   await clickButtonByText(page, 'EXPLODED');
   await new Promise((r) => setTimeout(r, 3000));
-  await page.screenshot({ path: path.join(OUT, '10-exploded-default.png') });
-
-  for (const preset of ['ISOMETRIC', 'TAMPAK DEPAN', 'TAMPAK SAMPING', 'DETAIL ATAS']) {
-    const ok = await clickButtonByText(page, preset);
-    if (ok) {
+  for (const preset of ['ISOMETRIC', 'TAMPAK DEPAN', 'TAMPAK SAMPING']) {
+    if (await clickButtonByText(page, preset)) {
       await new Promise((r) => setTimeout(r, 1500));
-      const slug = preset.toLowerCase().replace(/\s+/g, '-');
-      await page.screenshot({ path: path.join(OUT, `11-exploded-${slug}.png`) });
-      console.log(`exploded ${preset}`);
+      await page.screenshot({ path: path.join(OUT, `exploded-${preset.toLowerCase().replace(/\s+/g, '-')}.png`) });
     }
   }
 
   await browser.close();
-  console.log('\nErrors:', errors.length);
-  errors.forEach((e) => console.log(' ', e.msg));
-  console.log(`Screenshots: ${OUT}`);
+  console.log('Done:', OUT);
 })();

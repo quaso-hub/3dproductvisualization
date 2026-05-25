@@ -241,8 +241,14 @@ function buildSculptedCloser(scene: THREE.Object3D): void {
   const housing = matCloserHousing();
   const arm = matCloserArm();
 
+  // BUGFIX 2026-05-25 (research-driven): closer body was at HY = DH/2 + FW/2 =
+  // 114, which put the housing ABOVE the frame head — read by users as a
+  // "stray iron bar floating above the kusen". Real Sargent 281 / LCN 4040
+  // closers mount on the DOOR FACE just below the top rail. Industry
+  // confirmation: idighardware.com / Marshield / Sargent install manuals.
+  // See: docs/research/2026-05-25-pb-lead-door-references.md (Bug 1).
   const HX = 0;
-  const HY = DH / 2 + FW / 2;
+  const HY = DH / 2 - 8;        // housing on door face below top rail (was DH/2 + FW/2)
   const HZ = DT / 2 + 3.0; // housing center Z (DT/2 = door front, +3 = housing offset)
   const HOUSING_DEPTH = 6;
   const HOUSING_FRONT_Z = HZ + HOUSING_DEPTH / 2;

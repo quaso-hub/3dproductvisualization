@@ -44,7 +44,11 @@ const GR = 1.5;
 
 // Frame
 const FW = 8;
-const FD = 12;
+// BUGFIX 2026-05-25: was const FD = 12 (hardcoded). Assembled view uses
+// const FD = DT + 8 = 12.7. Mismatch caused subtle jamb-throat width drift
+// between assembled and exploded views. See research:
+// docs/research/2026-05-25-pb-lead-door-references.md (Bug 3).
+const FD = DT + 8;
 
 // ── Explosion offsets ─────────────────────────────────
 const PANEL_GAP = 14;        // gap antara panel layers (Z)
@@ -530,6 +534,84 @@ function buildExplodedScene(
     anchor: new THREE.Vector3(0, dsY_exploded - 1, 0),
     label: 'Drop Seal + Activation Pin',
     partId: 'drop-seal',
+  });
+
+  // ════════════════════════════════════════════════════
+  // 10. EPDM GASKET — perimeter compression seal
+  //     ADDED 2026-05-25: was missing in exploded view (Bug 3 sync issue).
+  //     Floats to door FRONT (+Z) so all 4 strips are visible as a frame.
+  // ════════════════════════════════════════════════════
+  const gasketGroup = new THREE.Group();
+  gasketGroup.userData.partId = 'gasket';
+  scene.add(gasketGroup);
+
+  const gT = 0.6;
+  const gFlangeZ = 0.4;
+  const gInset = 0.5;
+  const gZ_exploded = DT / 2 + 28; // float forward of door
+  // Top
+  const gTop = new THREE.Mesh(new THREE.BoxGeometry(DW - 1, gT, gFlangeZ), matRubber());
+  gTop.position.set(0, DH / 2 - gInset - gT / 2, gZ_exploded);
+  gasketGroup.add(gTop);
+  // Bottom
+  const gBot = new THREE.Mesh(new THREE.BoxGeometry(DW - 1, gT, gFlangeZ), matRubber());
+  gBot.position.set(0, -DH / 2 + gInset + gT / 2, gZ_exploded);
+  gasketGroup.add(gBot);
+  // Hinge-side
+  const gLeft = new THREE.Mesh(new THREE.BoxGeometry(gT, DH - 2, gFlangeZ), matRubber());
+  gLeft.position.set(-DW / 2 + gInset + gT / 2, 0, gZ_exploded);
+  gasketGroup.add(gLeft);
+  // Latch-side
+  const gRight = new THREE.Mesh(new THREE.BoxGeometry(gT, DH - 2, gFlangeZ), matRubber());
+  gRight.position.set(DW / 2 - gInset - gT / 2, 0, gZ_exploded);
+  gasketGroup.add(gRight);
+
+  dashedConnector(scene,
+    new THREE.Vector3(0, 0, gZ_exploded),
+    new THREE.Vector3(0, 0, DT / 2));
+  annotItems.push({
+    anchor: new THREE.Vector3(0, 0, gZ_exploded),
+    label: 'EPDM Perimeter Gasket',
+    partId: 'gasket',
+  });
+
+  // ════════════════════════════════════════════════════
+  // 11. LEAD CONTINUITY STRIPES — 2 mm Pb wrap edges
+  //     ADDED 2026-05-25: was missing in exploded view (Bug 3 sync issue).
+  //     Floats to door BACK (-Z) so the 2 mm Pb edge wrap reads clearly
+  //     as 4 separate strips wrapping the door perimeter.
+  // ════════════════════════════════════════════════════
+  const leadStripesGroup = new THREE.Group();
+  leadStripesGroup.userData.partId = 'lead-stripes';
+  scene.add(leadStripesGroup);
+
+  const lsZ_exploded = -DT / 2 - 35;
+  const stripT = 0.2;
+  const stripW = 0.8;
+  // Top strip
+  const lsTop = new THREE.Mesh(new THREE.BoxGeometry(DW, stripW, stripT), matLead());
+  lsTop.position.set(0, DH / 2 - stripW / 2, lsZ_exploded);
+  leadStripesGroup.add(lsTop);
+  // Bottom strip
+  const lsBot = new THREE.Mesh(new THREE.BoxGeometry(DW, stripW, stripT), matLead());
+  lsBot.position.set(0, -DH / 2 + stripW / 2, lsZ_exploded);
+  leadStripesGroup.add(lsBot);
+  // Hinge-edge strip
+  const lsLeft = new THREE.Mesh(new THREE.BoxGeometry(stripW, DH, stripT), matLead());
+  lsLeft.position.set(-DW / 2 + stripW / 2, 0, lsZ_exploded);
+  leadStripesGroup.add(lsLeft);
+  // Latch-edge strip
+  const lsRight = new THREE.Mesh(new THREE.BoxGeometry(stripW, DH, stripT), matLead());
+  lsRight.position.set(DW / 2 - stripW / 2, 0, lsZ_exploded);
+  leadStripesGroup.add(lsRight);
+
+  dashedConnector(scene,
+    new THREE.Vector3(0, 0, lsZ_exploded),
+    new THREE.Vector3(0, 0, -DT / 2));
+  annotItems.push({
+    anchor: new THREE.Vector3(0, DH / 2 - 1, lsZ_exploded),
+    label: '2 mmPb edge continuity',
+    partId: 'lead-stripes',
   });
 
   // ── Annotations ──
