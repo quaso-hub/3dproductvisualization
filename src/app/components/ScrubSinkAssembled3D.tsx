@@ -35,7 +35,6 @@ import {
   knurledCylinder,
   barPullHandle,
   beveledDisc,
-  faucetSpout,
 } from '../lib/geometry-blender';
 import { useThreeScene } from '../hooks/useThreeScene';
 import { useHighlightController } from '../hooks/useHighlightController';
@@ -367,24 +366,16 @@ function buildSculptedPTrap(scene: THREE.Object3D, cx: number, fromY: number, to
   scene.add(cap);
 }
 
-// ── Sculpted faucet via faucetSpout helper ─────────────────────
+// ── Sculpted faucet — gooseneck tube langsung, tidak pakai faucetSpout helper ─
 
 function buildSculptedFaucet(scene: THREE.Object3D, fX: number): void {
   const chrome = matChrome();
-  const baseY = Y_CT_TOP + 1; // base column starts at countertop +1
+  const baseY = Y_CT_TOP + 1;
+  const FAUCET_BASE_Z = -22;
+  const tipY = 94;
+  const tipZ = -7.5;
 
-  // GEOMETRY FIX 2026-05-27: faucet base must sit on countertop BEHIND the
-  // basin (between basin rear edge and backsplash), not over the basin center.
-  // Basin center Z = -7.5, basin rear edge Z = -7.5 - 45/2 = -30 → but
-  // backsplash is at Z = -29, so faucet base sits at Z = -22 (120mm from
-  // backsplash face, 80mm behind basin rear). Gooseneck arches FORWARD over
-  // basin, tip pointing down at Z = -7.5 (basin center), Y = 94 (140mm above
-  // countertop — enough clearance for elbow-deep scrubbing).
-  const FAUCET_BASE_Z = -22; // deck-mounted behind basin
-  const tipY = 94;           // spout tip height above floor
-  const tipZ = -7.5;         // tip directly over basin center
-
-  // Mounting flange (Lathe — chamfered base) sits on countertop at FAUCET_BASE_Z
+  // Mounting flange (Lathe — chamfered base) sits on countertop
   const flangeProfile: Array<[number, number]> = [
     [0, 0],
     [2.4, 0],
@@ -400,28 +391,53 @@ function buildSculptedFaucet(scene: THREE.Object3D, fX: number): void {
   flange.castShadow = true;
   scene.add(flange);
 
-  // Faucet body — smooth gooseneck via faucetSpout helper
-  // Base at (fX, baseY+0.5, FAUCET_BASE_Z), tip at (fX, tipY, tipZ)
-  const { body, aerator } = faucetSpout(baseY + 0.5, tipY, tipZ, 1.4, fX);
-  const bodyMesh = new THREE.Mesh(body, chrome);
-  bodyMesh.castShadow = true;
-  scene.add(bodyMesh);
+  // Vertical column (cylinder) from countertop up to arch start
+  const colH = 14;
+  const colMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.1, 1.3, colH, 20),
+    chrome,
+  );
+  colMesh.position.set(fX, baseY + colH / 2, FAUCET_BASE_Z);
+  colMesh.castShadow = true;
+  scene.add(colMesh);
 
-  const aeratorMesh = new THREE.Mesh(aerator, chrome);
-  scene.add(aeratorMesh);
+  // Gooseneck arch — smooth CatmullRom tube dengan titik yang masuk akal
+  // Mulai dari atas kolom, arch ke depan, turun ke basin center
+  const archPoints = [
+    new THREE.Vector3(fX, baseY + colH,          FAUCET_BASE_Z),      // top of column
+    new THREE.Vector3(fX, baseY + colH + 4,       FAUCET_BASE_Z),      // short vertical rise
+    new THREE.Vector3(fX, baseY + colH + 8,       FAUCET_BASE_Z + 5),  // start arch forward
+    new THREE.Vector3(fX, baseY + colH + 10,      FAUCET_BASE_Z + 10), // peak of arch
+    new THREE.Vector3(fX, tipY + 2,               tipZ + 4),           // descending
+    new THREE.Vector3(fX, tipY,                   tipZ),               // tip over basin
+  ];
+  const archTube = new THREE.Mesh(smoothTube(archPoints, 1.0, 48, 16), chrome);
+  archTube.castShadow = true;
+  scene.add(archTube);
 
-  // IR sensor dome on FRONT face of vertical column (faces user +Z)
-  // Positioned at column base ~8u above countertop, facing toward user
+  // Aerator at tip (tapered disc pointing down)
+  const aeratorProfile: Array<[number, number]> = [
+    [0, 0],
+    [1.3, 0],
+    [1.2, 0.4],
+    [0.9, 0.8],
+    [0, 0.8],
+  ];
+  const aerator = new THREE.Mesh(latheProfile(aeratorProfile, 20), chrome);
+  aerator.position.set(fX, tipY - 0.8, tipZ);
+  scene.add(aerator);
+
+  // IR sensor dome on front face of column
   const sensorDome = new THREE.Mesh(
     new THREE.SphereGeometry(0.85, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2),
     new THREE.MeshPhysicalMaterial({ color: 0x1a1a1a, roughness: 0.4, metalness: 0.3, clearcoat: 0.4 }),
   );
-  sensorDome.rotation.x = Math.PI / 2; // hemisphere face → +Z (toward user)
+  sensorDome.rotation.x = Math.PI / 2;
   sensorDome.position.set(fX, baseY + 8, FAUCET_BASE_Z + 1.0);
   sensorDome.castShadow = true;
   scene.add(sensorDome);
 
-  // Sensor LED dot — tiny emissive red, proud of dome face
+  // Sensor LED dot
   const dot = new THREE.Mesh(
     new THREE.SphereGeometry(0.18, 12, 8),
     new THREE.MeshStandardMaterial({
@@ -933,9 +949,10 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
   backWall.position.set(0, T_BASE + T_CAB / 2, -D / 2 + 0.5);
   backWall.castShadow = backWall.receiveShadow = true;
   cabinetGroup.add(backWall);
-  // Top
+  // Top — flush dengan countertop bottom (Y_CT_TOP - T_CT = 76)
+  // Naikkan 0.5 supaya top face tepat di 76, tidak ada gap visual
   const topShelf = new THREE.Mesh(new THREE.BoxGeometry(W, 1, D), cabMatte);
-  topShelf.position.set(0, Y_CAB_TOP - 0.5, 0);
+  topShelf.position.set(0, Y_CAB_TOP, 0);
   topShelf.castShadow = topShelf.receiveShadow = true;
   cabinetGroup.add(topShelf);
   // Left side
