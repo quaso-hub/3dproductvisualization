@@ -368,11 +368,19 @@ function buildSculptedPTrap(scene: THREE.Object3D, cx: number, fromY: number, to
 function buildSculptedFaucet(scene: THREE.Object3D, fX: number): void {
   const chrome = matChrome();
   const baseY = Y_CT_TOP + 1; // base column starts at countertop +1
-  const tipY = 92;
-  const tipZ = 2;
 
-  // Mounting flange (Lathe — chamfered base)
-  // Flange Y range: Y_CT_TOP to Y_CT_TOP+1.5 (sits ON countertop, slight raise)
+  // GEOMETRY FIX 2026-05-27: faucet base must sit on countertop BEHIND the
+  // basin (between basin rear edge and backsplash), not over the basin center.
+  // Basin center Z = -7.5, basin rear edge Z = -7.5 - 45/2 = -30 → but
+  // backsplash is at Z = -29, so faucet base sits at Z = -22 (120mm from
+  // backsplash face, 80mm behind basin rear). Gooseneck arches FORWARD over
+  // basin, tip pointing down at Z = -7.5 (basin center), Y = 94 (140mm above
+  // countertop — enough clearance for elbow-deep scrubbing).
+  const FAUCET_BASE_Z = -22; // deck-mounted behind basin
+  const tipY = 94;           // spout tip height above floor
+  const tipZ = -7.5;         // tip directly over basin center
+
+  // Mounting flange (Lathe — chamfered base) sits on countertop at FAUCET_BASE_Z
   const flangeProfile: Array<[number, number]> = [
     [0, 0],
     [2.4, 0],
@@ -384,13 +392,12 @@ function buildSculptedFaucet(scene: THREE.Object3D, fX: number): void {
     [0, 1.5],
   ];
   const flange = new THREE.Mesh(latheProfile(flangeProfile, 24), chrome);
-  flange.position.set(fX, Y_CT_TOP, -22);
+  flange.position.set(fX, Y_CT_TOP, FAUCET_BASE_Z);
   flange.castShadow = true;
   scene.add(flange);
 
   // Faucet body — smooth gooseneck via faucetSpout helper
-  // ALIGNMENT: tube starts ABOVE flange top (baseY = Y_CT_TOP+1.5 = 81.5)
-  // and curves to tip pointing DOWN at (fX, tipY, tipZ)
+  // Base at (fX, baseY+0.5, FAUCET_BASE_Z), tip at (fX, tipY, tipZ)
   const { body, aerator } = faucetSpout(baseY + 0.5, tipY, tipZ, 1.4, fX);
   const bodyMesh = new THREE.Mesh(body, chrome);
   bodyMesh.castShadow = true;
@@ -399,20 +406,18 @@ function buildSculptedFaucet(scene: THREE.Object3D, fX: number): void {
   const aeratorMesh = new THREE.Mesh(aerator, chrome);
   scene.add(aeratorMesh);
 
-  // IR sensor — recessed dome on FRONT face of vertical column (faces user +Z)
-  // Located at column base, ~8u above countertop
-  // Sphere half (0,PI/2) without rotation = top hemisphere. Rotation x=π/2 makes
-  // hemisphere axis point along +Z (face the user).
+  // IR sensor dome on FRONT face of vertical column (faces user +Z)
+  // Positioned at column base ~8u above countertop, facing toward user
   const sensorDome = new THREE.Mesh(
     new THREE.SphereGeometry(0.85, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2),
     new THREE.MeshPhysicalMaterial({ color: 0x1a1a1a, roughness: 0.4, metalness: 0.3, clearcoat: 0.4 }),
   );
   sensorDome.rotation.x = Math.PI / 2; // hemisphere face → +Z (toward user)
-  sensorDome.position.set(fX, baseY + 8, -21); // sensor at Z=-21, just inside column surface
+  sensorDome.position.set(fX, baseY + 8, FAUCET_BASE_Z + 1.0);
   sensorDome.castShadow = true;
   scene.add(sensorDome);
 
-  // Sensor LED dot — sits IN FRONT of sensor dome, tiny emissive red
+  // Sensor LED dot — tiny emissive red, proud of dome face
   const dot = new THREE.Mesh(
     new THREE.SphereGeometry(0.18, 12, 8),
     new THREE.MeshStandardMaterial({
@@ -421,7 +426,7 @@ function buildSculptedFaucet(scene: THREE.Object3D, fX: number): void {
       emissiveIntensity: 1.2,
     }),
   );
-  dot.position.set(fX, baseY + 8, -20.1); // dot just proud of dome face (Z=-21+0.85=-20.15)
+  dot.position.set(fX, baseY + 8, FAUCET_BASE_Z + 1.85);
   scene.add(dot);
 }
 
@@ -518,8 +523,11 @@ function buildSculptedSoapDispenser(scene: THREE.Object3D, dx: number): void {
     [1.4, 17],
     [0, 17],
   ];
+  // GEOMETRY FIX 2026-05-27: dispenser sits on countertop at same Z as faucet
+  // base (-22), not at Z=-4 (which was floating in mid-air over the basin).
+  const SOAP_Z = -22;
   const bottle = new THREE.Mesh(latheProfile(bottleProfile, 36), matte);
-  bottle.position.set(dx, 80, -4);
+  bottle.position.set(dx, Y_CT_TOP, SOAP_Z);
   bottle.castShadow = true;
   bottle.receiveShadow = true;
   scene.add(bottle);
@@ -541,16 +549,16 @@ function buildSculptedSoapDispenser(scene: THREE.Object3D, dx: number): void {
     ),
     chrome,
   );
-  cap.position.set(dx, 97, -4);
+  cap.position.set(dx, Y_CT_TOP + 17, SOAP_Z);
   cap.castShadow = true;
   scene.add(cap);
 
-  // Curved nozzle
+  // Curved nozzle — arches forward toward basin
   const nozzlePoints = [
-    new THREE.Vector3(dx, 98, -4),
-    new THREE.Vector3(dx, 99.5, -4),
-    new THREE.Vector3(dx, 100, -2.5),
-    new THREE.Vector3(dx, 100.2, -1),
+    new THREE.Vector3(dx, Y_CT_TOP + 18, SOAP_Z),
+    new THREE.Vector3(dx, Y_CT_TOP + 19.5, SOAP_Z),
+    new THREE.Vector3(dx, Y_CT_TOP + 20, SOAP_Z + 1.5),
+    new THREE.Vector3(dx, Y_CT_TOP + 20.2, SOAP_Z + 3),
   ];
   const nozzle = new THREE.Mesh(smoothTube(nozzlePoints, 0.4, 32, 16), chrome);
   nozzle.castShadow = true;
@@ -618,27 +626,42 @@ function buildSculptedMirror(scene: THREE.Object3D, mx: number): void {
   const frame = matSSPolished();
   const glass = matMirror();
 
-  // BUGFIX 2026-05-25: previous mirror floated in air with no visible
-  // mounting context. Add 2 small SS bracket tabs at top + bottom so side
-  // view reads as wall-mounted (mounted to backsplash at Z=-29).
-  const bracketGeo = new THREE.BoxGeometry(2.5, 1.0, 0.6);
-  for (const by of [78, 138]) {
+  // GEOMETRY FIX 2026-05-27: mirror must be flush-mounted on the FRONT face
+  // of the backsplash. Backsplash is at Z = BP_Z (-29) with depth 2, so its
+  // front face is at Z = BP_Z + 2 = -27. Mirror glass sits at Z = -26.5
+  // (3mm proud of backsplash face). Frame sits at Z = -26.2 (proud of glass).
+  //
+  // Mirror vertical position: backsplash runs Y=80→155. Mirror sits in the
+  // lower 2/3 of backsplash: bottom at Y=88 (80+8 margin), top at Y=138
+  // (50u = 500mm tall mirror). Center Y = 113.
+  //
+  // Mirror width: 55u (550mm) per bay — fits within 80u bay width with margin.
+  const MIRROR_Z_GLASS = -26.5;  // front face of backsplash + 0.5 glass
+  const MIRROR_Z_FRAME = -26.2;  // frame proud of glass
+  const MIRROR_BOT_Y  = 88;      // 80mm above backsplash base
+  const MIRROR_TOP_Y  = 138;     // 500mm tall
+  const MIRROR_CY     = (MIRROR_BOT_Y + MIRROR_TOP_Y) / 2; // 113
+  const MIRROR_H      = MIRROR_TOP_Y - MIRROR_BOT_Y;       // 50
+  const MIRROR_W      = 55;
+
+  // Mounting bracket tabs — 2 per mirror, top and bottom, recessed into backsplash
+  const bracketGeo = new THREE.BoxGeometry(2.5, 1.0, 1.2);
+  for (const by of [MIRROR_BOT_Y + 1, MIRROR_TOP_Y - 1]) {
     const bracket = new THREE.Mesh(bracketGeo, matSSPolished());
-    bracket.position.set(mx, by, -28.0); // Z slightly forward of backsplash face
+    bracket.position.set(mx, by, MIRROR_Z_GLASS - 0.3);
     bracket.castShadow = true;
     scene.add(bracket);
   }
 
-  // Glass slab
+  // Glass slab — flush on backsplash front face
   const glassMesh = new THREE.Mesh(
-    beveledPlate(55, 60, 0.5, 0.2, 2),
+    beveledPlate(MIRROR_W, MIRROR_H, 0.5, 0.2, 2),
     glass,
   );
-  glassMesh.position.set(mx, 108, -28.5);
+  glassMesh.position.set(mx, MIRROR_CY, MIRROR_Z_GLASS);
   scene.add(glassMesh);
 
-  // Mitred frame — 4 angled bars, 45° corners
-  // Use ExtrudeGeometry of L-profile for better corner mitre
+  // Mitred L-profile frame — 4 bars at 45° corners
   const profileShape = new THREE.Shape();
   profileShape.moveTo(0, 0);
   profileShape.lineTo(1.6, 0);
@@ -648,40 +671,40 @@ function buildSculptedMirror(scene: THREE.Object3D, mx: number): void {
   profileShape.lineTo(0, 1.0);
   profileShape.closePath();
 
-  // Top bar (extruded along X)
-  const topGeo = new THREE.ExtrudeGeometry(profileShape, { depth: 56, bevelEnabled: false });
+  // Top bar
+  const topGeo = new THREE.ExtrudeGeometry(profileShape, { depth: MIRROR_W + 2, bevelEnabled: false });
   topGeo.rotateY(-Math.PI / 2);
-  topGeo.translate(28, 0, 0);
+  topGeo.translate((MIRROR_W + 2) / 2, 0, 0);
   const topBar = new THREE.Mesh(topGeo, frame);
-  topBar.position.set(mx - 28, 138, -28.5);
+  topBar.position.set(mx - (MIRROR_W + 2) / 2, MIRROR_TOP_Y, MIRROR_Z_FRAME);
   topBar.rotation.set(0, 0, Math.PI);
   topBar.castShadow = true;
   scene.add(topBar);
 
   // Bottom bar
-  const botGeo = new THREE.ExtrudeGeometry(profileShape, { depth: 56, bevelEnabled: false });
+  const botGeo = new THREE.ExtrudeGeometry(profileShape, { depth: MIRROR_W + 2, bevelEnabled: false });
   botGeo.rotateY(-Math.PI / 2);
-  botGeo.translate(28, 0, 0);
+  botGeo.translate((MIRROR_W + 2) / 2, 0, 0);
   const botBar = new THREE.Mesh(botGeo, frame);
-  botBar.position.set(mx - 28, 78, -28.5);
+  botBar.position.set(mx - (MIRROR_W + 2) / 2, MIRROR_BOT_Y, MIRROR_Z_FRAME);
   botBar.castShadow = true;
   scene.add(botBar);
 
   // Left bar
-  const leftGeo = new THREE.ExtrudeGeometry(profileShape, { depth: 60, bevelEnabled: false });
+  const leftGeo = new THREE.ExtrudeGeometry(profileShape, { depth: MIRROR_H, bevelEnabled: false });
   leftGeo.rotateY(-Math.PI / 2);
   leftGeo.rotateZ(Math.PI / 2);
   const leftBar = new THREE.Mesh(leftGeo, frame);
-  leftBar.position.set(mx - 28, 78, -28.5);
+  leftBar.position.set(mx - MIRROR_W / 2 - 1, MIRROR_BOT_Y, MIRROR_Z_FRAME);
   leftBar.castShadow = true;
   scene.add(leftBar);
 
   // Right bar
-  const rightGeo = new THREE.ExtrudeGeometry(profileShape, { depth: 60, bevelEnabled: false });
+  const rightGeo = new THREE.ExtrudeGeometry(profileShape, { depth: MIRROR_H, bevelEnabled: false });
   rightGeo.rotateY(-Math.PI / 2);
   rightGeo.rotateZ(-Math.PI / 2);
   const rightBar = new THREE.Mesh(rightGeo, frame);
-  rightBar.position.set(mx + 28, 78, -28.5);
+  rightBar.position.set(mx + MIRROR_W / 2 + 1, MIRROR_BOT_Y, MIRROR_Z_FRAME);
   rightBar.castShadow = true;
   scene.add(rightBar);
 }
@@ -1132,37 +1155,43 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
   canopyGroup.userData.partId = 'canopy';
   scene.add(canopyGroup);
 
-  // BUGFIX 2026-05-25: previous version had canopy + mirror floating in air
-  // with no visible support hardware. Real OR scrub sinks have either wall
-  // posts or end-caps connecting backsplash to canopy. Add 2 vertical SS
-  // posts at canopy ends so the side view reads as integral assembly.
-  const supportPostGeo = new THREE.CylinderGeometry(0.6, 0.6, 5, 16);
+  // GEOMETRY FIX 2026-05-27: canopy was at Y=152.5 which overlapped the
+  // backsplash top (Y=80+75=155). Real spec: overhead shelf sits at 1680mm
+  // from floor = 168u. Canopy body is 5u tall so center at Y=170.5.
+  // Support posts connect backsplash top (Y=155) to canopy bottom (Y=168).
+  const CANOPY_BOT_Y = 168;
+  const CANOPY_CY    = CANOPY_BOT_Y + 2.5; // center of 5u-tall canopy body
+  const CANOPY_Z     = -22;                 // same depth as backsplash zone
+
+  // Vertical support posts — connect backsplash top to canopy underside
+  const supportPostGeo = new THREE.CylinderGeometry(0.6, 0.6, CANOPY_BOT_Y - 155, 16);
   for (const sx of [-78, 78]) {
     const post = new THREE.Mesh(supportPostGeo, matSSPolished());
-    post.position.set(sx, 152, -22);
+    post.position.set(sx, 155 + (CANOPY_BOT_Y - 155) / 2, CANOPY_Z);
     post.castShadow = true;
     canopyGroup.add(post);
   }
 
   const canopy = new THREE.Mesh(roundedBox(164, 5, 14, 0.4, 2), matSSPolished());
-  canopy.position.set(0, 152.5, -22);
+  canopy.position.set(0, CANOPY_CY, CANOPY_Z);
   canopy.castShadow = true;
   canopyGroup.add(canopy);
 
-  // LED strip (BoxGeometry — flat strip)
+  // LED strip (BoxGeometry — flat strip on underside of canopy)
   const led = new THREE.Mesh(new THREE.BoxGeometry(158, 0.8, 4), matLEDStrip());
-  led.position.set(0, 150.1, -25);
+  led.position.set(0, CANOPY_BOT_Y - 0.4, CANOPY_Z - 3);
   canopyGroup.add(led);
 
-  // UV tube (CylinderGeometry — already simple)
+  // UV tube (CylinderGeometry)
   const uvTube = new THREE.Mesh(
     new THREE.CylinderGeometry(0.7, 0.7, 150, 16),
     matUVTube(),
   );
   uvTube.rotation.z = Math.PI / 2;
-  uvTube.position.set(0, 150.5, -18);
+  uvTube.position.set(0, CANOPY_BOT_Y + 1, CANOPY_Z + 2);
   canopyGroup.add(uvTube);
-  // UV end caps (Lathe — chamfered cylinder ends, but small segments)
+
+  // UV end caps
   const endCapGeo = latheProfile(
     [
       [0, -0.3],
@@ -1176,45 +1205,51 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
   for (const ex of [-76, 76]) {
     const cap = new THREE.Mesh(endCapGeo, matChrome());
     cap.rotation.z = ex < 0 ? Math.PI / 2 : -Math.PI / 2;
-    cap.position.set(ex, 150.5, -18);
+    cap.position.set(ex, CANOPY_BOT_Y + 1, CANOPY_Z + 2);
     canopyGroup.add(cap);
   }
-  // Louvre slats (BoxGeometry — flat strips, no chamfer)
+
+  // Louvre slats on canopy underside
   const louvreMat = matSSMatte();
   const louvreGeo = new THREE.BoxGeometry(150, 0.3, 0.6);
   for (let i = -7; i <= 7; i += 2) {
     const slat = new THREE.Mesh(louvreGeo, louvreMat);
-    slat.position.set(0, 149.8, -18 + i * 0.4);
+    slat.position.set(0, CANOPY_BOT_Y - 0.2, CANOPY_Z + 2 + i * 0.4);
     slat.rotation.x = -0.15;
     canopyGroup.add(slat);
   }
 
   // Soap dispensers (sculpted bottles) — both share `soap-dispenser` part
+  // GEOMETRY FIX 2026-05-27: dispensers were at X=±72 (near unit edges, outside
+  // basin zone). Real spec: soap spout mounts on countertop ~200mm (20u) to the
+  // left of each faucet base. Faucet bases are at X=±40, so dispensers at
+  // X = -40-20 = -60 (left bay) and X = 40+20 = 60 (right bay).
+  // Both at same Z as faucet base (-22) so they read as countertop-mounted.
   const soapGroup = new THREE.Group();
   soapGroup.userData.partId = 'soap-dispenser';
   scene.add(soapGroup);
-  buildSculptedSoapDispenser(soapGroup, -72);
-  buildSculptedSoapDispenser(soapGroup, 72);
+  buildSculptedSoapDispenser(soapGroup, -60);
+  buildSculptedSoapDispenser(soapGroup, 60);
 
-  // Annotations
+  // Annotations — updated to match corrected geometry positions
   placeAnnotations(
     scene,
     [
-      { partId: 'canopy',          anchor: new THREE.Vector3(60, 152.5, -22), label: 'Canopy + UV Germicidal' },
-      { partId: 'mirror',          anchor: new THREE.Vector3(-10, 120, -28.5), label: 'Mirror SS Mitred Frame' },
-      { partId: 'faucet',          anchor: new THREE.Vector3(-40, 92, 2), label: 'Sensor IR Gooseneck' },
-      { partId: 'plexi-divider',   anchor: new THREE.Vector3(0, 92, -7.5), label: 'Plexi Divider' },
-      { partId: 'soap-dispenser',  anchor: new THREE.Vector3(-72, 90, -4), label: 'Soap Dispenser' },
-      { partId: 'drain-trap',      anchor: new THREE.Vector3(-40, 59, -7.5), label: 'Drain ⌀50 + P-Trap' },
-      { partId: 'tmv',             anchor: new THREE.Vector3(0, 28, -27), label: 'TMV (ASSE 1070)' },
-      { partId: 'supply-lines',    anchor: new THREE.Vector3(-12, 6, -27), label: 'Hot Supply + Angle Stop' },
-      { partId: 'basin-right',     anchor: new THREE.Vector3(40, Y_CT_TOP, 15), label: 'Basin SS304 Coved' },
-      { partId: 'countertop',      anchor: new THREE.Vector3(60, 78, 0), label: 'Countertop SS304' },
-      { partId: 'cabinet',         anchor: new THREE.Vector3(60, T_BASE + T_CAB / 2, 31), label: 'Cabinet 4 Hinged Doors' },
-      { partId: 'foot-pedal',      anchor: new THREE.Vector3(0, 1.6, 36), label: 'Foot Pedal (rocker)' },
+      { partId: 'canopy',          anchor: new THREE.Vector3(60, 170.5, -22),        label: 'Canopy + UV Germicidal' },
+      { partId: 'mirror',          anchor: new THREE.Vector3(-10, 113, -26.5),        label: 'Mirror SS Mitred Frame' },
+      { partId: 'faucet',          anchor: new THREE.Vector3(-40, 94, -7.5),          label: 'Sensor IR Gooseneck' },
+      { partId: 'plexi-divider',   anchor: new THREE.Vector3(0, 92, -7.5),            label: 'Plexi Divider' },
+      { partId: 'soap-dispenser',  anchor: new THREE.Vector3(-60, Y_CT_TOP + 10, -22), label: 'Soap Dispenser' },
+      { partId: 'drain-trap',      anchor: new THREE.Vector3(-40, 59, -7.5),          label: 'Drain ⌀50 + P-Trap' },
+      { partId: 'tmv',             anchor: new THREE.Vector3(0, 28, -27),             label: 'TMV (ASSE 1070)' },
+      { partId: 'supply-lines',    anchor: new THREE.Vector3(-12, 6, -27),            label: 'Hot Supply + Angle Stop' },
+      { partId: 'basin-right',     anchor: new THREE.Vector3(40, Y_CT_TOP, 15),       label: 'Basin SS304 Coved' },
+      { partId: 'countertop',      anchor: new THREE.Vector3(60, 78, 0),              label: 'Countertop SS304' },
+      { partId: 'cabinet',         anchor: new THREE.Vector3(60, T_BASE + T_CAB / 2, 31), label: 'Cabinet Seamless SS' },
+      { partId: 'foot-pedal',      anchor: new THREE.Vector3(0, 1.6, 36),             label: 'Foot Pedal (rocker)' },
     ],
     W / 2 + 40,
-    [0, 158],
+    [0, 178],
   );
 }
 

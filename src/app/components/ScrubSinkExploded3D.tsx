@@ -167,21 +167,31 @@ function buildExplodedScene(refs: any) {
     cabEdges.position.copy(cab.position);
     cabinetGroup.add(cabEdges);
 
-    // 4 door panel outlines on front face
-    const doorW = 38, doorH = 58;
-    const doorLineMat = new THREE.LineBasicMaterial({ color: 0x607080, opacity: 0.4, transparent: true });
-    const doorGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(doorW, doorH, 0.5));
-    [-(W / 4 + 1), -(W / 4 - doorW - 1), (W / 4 - doorW - 1), (W / 4 + 1)].forEach((dx) => {
-      const edge = new THREE.LineSegments(doorGeo.clone(), doorLineMat);
-      edge.position.set(dx, G1_Y + G1_H / 2, D / 2 + 0.5);
-      cabinetGroup.add(edge);
+    // GEOMETRY FIX 2026-05-27: real scrub sinks have NO hinged doors.
+    // Replace 4 door outlines with 2 knee-kick panel outlines (one per bay)
+    // and a subtle horizontal seam line at ~150mm from floor.
+    // Knee-kick panels: 406mm wide (40.6u), 216mm tall (21.6u), centered on each bay.
+    const kickLineMat = new THREE.LineBasicMaterial({ color: 0x607080, opacity: 0.45, transparent: true });
+    const kickGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(40.6, 21.6, 0.5));
+    ([BAY_CX_L, BAY_CX_R]).forEach((bx) => {
+      const kick = new THREE.LineSegments(kickGeo.clone(), kickLineMat);
+      kick.position.set(bx, G1_Y + 15 + 10.8, D / 2 + 0.5); // bottom at Y=15 (150mm)
+      cabinetGroup.add(kick);
     });
 
-    // Foot pedals
-    const pedalMat = new THREE.MeshStandardMaterial({ color: 0x8898a8, roughness: 0.30, metalness: 0.70 });
+    // Horizontal seam line across full width at Y=15 (150mm from floor)
+    const seamGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-W / 2 + 2, G1_Y + 15, D / 2 + 0.6),
+      new THREE.Vector3(W / 2 - 2,  G1_Y + 15, D / 2 + 0.6),
+    ]);
+    cabinetGroup.add(new THREE.Line(seamGeo,
+      new THREE.LineBasicMaterial({ color: 0x607080, opacity: 0.3, transparent: true })));
+
+    // Foot pedals (rocker plates, one per bay)
+    const pedalMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.85, metalness: 0.0 });
     ([BAY_CX_L, BAY_CX_R]).forEach((px) => {
-      const pedal = new THREE.Mesh(new THREE.BoxGeometry(12, 2, 18), pedalMat);
-      pedal.position.set(px, G1_Y + 1, D / 2 + 4);
+      const pedal = new THREE.Mesh(new THREE.BoxGeometry(20, 1.6, 14), pedalMat);
+      pedal.position.set(px, G1_Y + 1.8, D / 2 + 4);
       cabinetGroup.add(pedal);
     });
 
