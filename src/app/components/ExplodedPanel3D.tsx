@@ -70,7 +70,7 @@ export function ExplodedPanel3D({ product }: Props) {
       });
       refs.scene.add(panelGroup);
 
-      /* Annotations — elbow-leader column, sorted by Z position */
+      /* Annotations - elbow-leader column, sorted by Z position */
       {
         let az2 = -span / 2;
         const annotItems = layers.map((layer, i) => {

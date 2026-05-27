@@ -75,7 +75,7 @@ export function useThreeScene({
     if (!container) return;
 
     let initialized = false;
-    let stopRender: (() => void) | undefined;
+    let renderHandle: { stop: () => void; invalidate: () => void } | undefined;
 
     // ro must be declared before init() so the closure captures the correct reference
     // eslint-disable-next-line prefer-const
@@ -91,7 +91,14 @@ export function useThreeScene({
 
       onInit(refs);
 
-      stopRender = startRenderLoop(refs, onTick);
+      // After scene is fully built, force shadow regen ONCE.
+      // shadowMap.autoUpdate is OFF (Genshin pattern from research),
+      // so we must explicitly re-render shadows now that geometry is added.
+      refs.renderer.shadowMap.needsUpdate = true;
+
+      // wrap onTick to match new signature (boolean | void return)
+      const tickWrap = onTick ? () => { onTick(); return false; } : undefined;
+      renderHandle = startRenderLoop(refs, tickWrap);
     };
 
     ro = new ResizeObserver(init);
@@ -101,7 +108,7 @@ export function useThreeScene({
 
     return () => {
       ro.disconnect();
-      stopRender?.();
+      renderHandle?.stop();
       if (refsRef.current) {
         disposeScene(refsRef.current, container);
         refsRef.current = null;

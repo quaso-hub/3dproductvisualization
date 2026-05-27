@@ -42,7 +42,7 @@ export function AssembledPanel3D({ product }: Props) {
       });
       refs.scene.add(panelGroup);
 
-      /* Annotations — elbow-leader column, evenly spread over panel height */
+      /* Annotations - elbow-leader column, evenly spread over panel height */
       {
         let az2 = -total / 2;
         const annotItems = layers.map((layer, i) => {
