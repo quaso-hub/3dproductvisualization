@@ -241,15 +241,22 @@ function buildSculptedCloser(scene: THREE.Object3D): void {
   const housing = matCloserHousing();
   const arm = matCloserArm();
 
-  // BUGFIX 2026-05-25 (research-driven): closer body was at HY = DH/2 + FW/2 =
-  // 114, which put the housing ABOVE the frame head — read by users as a
-  // "stray iron bar floating above the kusen". Real Sargent 281 / LCN 4040
-  // closers mount on the DOOR FACE just below the top rail. Industry
-  // confirmation: idighardware.com / Marshield / Sargent install manuals.
-  // See: docs/research/2026-05-25-pb-lead-door-references.md (Bug 1).
+  // BUGFIX 2026-05-27 (user feedback): closer was on door FACE just below top
+  // rail (HY = DH/2 - 8). Wrong for medical RS practice — the body must stay
+  // STATIC while the door swings, otherwise the closer's spring/oil cylinder
+  // rotates with the door (mechanically nonsensical). Real Sargent 281 in
+  // hospital pull-side mounts puts BODY ON THE FRAME HEADER (kusen atas) and
+  // arm reaches DOWN to a bracket on the door face. When door swings, arm
+  // articulates; body stays put.
+  // Layout:
+  //   • body center y = DH/2 + FW/2 = 114 (header centerline)
+  //   • body center z = FD/2 + housing_proud (in front of header face)
+  //   • foot bracket stays on door face near top (unchanged)
+  //   • pin drops down from header bottom → pivot → arm bends to foot
   const HX = 0;
-  const HY = DH / 2 - 8;        // housing on door face below top rail (was DH/2 + FW/2)
-  const HZ = DT / 2 + 3.0; // housing center Z (DT/2 = door front, +3 = housing offset)
+  const HY = DH / 2 + FW / 2;            // header centerline (kusen atas)
+  const HOUSING_PROUD = 3.0;              // body sits 30mm in front of header face
+  const HZ = FD / 2 + HOUSING_PROUD;      // body center Z = 6.35 + 3 = 9.35
   const HOUSING_DEPTH = 6;
   const HOUSING_FRONT_Z = HZ + HOUSING_DEPTH / 2;
 
@@ -316,10 +323,15 @@ function buildSculptedCloser(scene: THREE.Object3D): void {
   knuckleTop.castShadow = true;
   scene.add(knuckleTop);
 
-  // Main arm via smoothTube — TRUE 3D Z-bend forward (Sargent 281 signature)
-  // Pivot starts AT knuckle bottom (continuous geometry — no air gap)
+  // Main arm via smoothTube — TRUE 3D Z-bend (Sargent 281 signature)
+  // Geometry now bridges header-mounted body → door-face foot bracket:
+  //   • pivot starts at knuckle bottom in FRONT of header (z = HZ ≈ 9.35)
+  //   • elbow drops down + back (z toward door surface) — bent forward arm
+  //   • foot lands on door face near top edge (z = DT/2+0.3 ≈ 2.65)
+  // The arm therefore reads as a real pull-side closer reaching from header
+  // down to the door — body stays static while door swings.
   const pivot = new THREE.Vector3(HX + 5, PIN_BOT_Y - 1.5, HZ);
-  const elbow = new THREE.Vector3(HX + 1, HY - 9, HZ + 5);
+  const elbow = new THREE.Vector3(HX + 2, HY - 7, HZ - 1.5);
   // Foot at door front face — bracket Z extends DT/2 to DT/2+0.6, mid at DT/2+0.3
   const FOOT_Z = DT / 2 + 0.3;
   const foot = new THREE.Vector3(HX - 1, DH / 2 - 1.5, FOOT_Z);
