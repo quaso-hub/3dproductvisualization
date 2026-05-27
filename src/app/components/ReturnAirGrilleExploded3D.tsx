@@ -1,7 +1,7 @@
 /**
- * ReturnAirGrilleExploded3D.tsx — EXPLODED VIEW
- * ─────────────────────────────────────────────────────────────
- * Wall Corner Return Air Grille SUS-304 — komponen terpisah.
+ * ReturnAirGrilleExploded3D.tsx - EXPLODED VIEW
+ * ------------------------------─
+ * Wall Corner Return Air Grille SUS-304 - komponen terpisah.
  *
  * 4 kelompok komponen dipisahkan sepanjang sumbu Z (depth):
  *   A. Face panel (perforated)  → Z += GAP   (depan)
@@ -10,7 +10,7 @@
  *   D. Mounting flange          → Z -= GAP×2 (paling belakang)
  *
  * Tidak ada wall fragment di exploded view.
- * ─────────────────────────────────────────────────────────────
+ * ------------------------------─
  */
 
 import { useState } from 'react';
@@ -19,11 +19,12 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { Product, CameraPreset } from '../data/products';
 import { applyCameraPreset, downloadPNG, placeAnnotations } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
+import { useHighlightController } from '../hooks/useHighlightController';
 import { ViewerControls } from './ViewerControls';
 
 interface Props { product: Product }
 
-// ─── Dimensi (scene units, 1 unit = 10mm) ───────────────────
+// -─ Dimensi (scene units, 1 unit = 10mm) ---------─
 const FW = 60;         // frame outer width  600mm
 const FH = 40;         // frame outer height 400mm
 const FD = 10;         // frame depth        100mm
@@ -42,7 +43,7 @@ const FILTER_T = 2;
 
 const GAP = 15; // 150mm explosion separation
 
-// ─── Material factories ──────────────────────────────────────
+// -─ Material factories -------------------
 
 function matSSBrushed() {
   return new THREE.MeshStandardMaterial({
@@ -62,7 +63,7 @@ function matFilter() {
   });
 }
 
-// ─── CanvasTexture for perforated face panel ─────────────────
+// -─ CanvasTexture for perforated face panel --------─
 
 function createPerforationAlphaMap(): THREE.CanvasTexture {
   const CW = 1120, CH = 720;
@@ -109,7 +110,7 @@ function matPerforatedFace(alphaMap: THREE.CanvasTexture) {
   });
 }
 
-// ─── Geometry helpers ────────────────────────────────────────
+// -─ Geometry helpers --------------------
 
 function addBox(
   parent: THREE.Object3D, w: number, h: number, d: number,
@@ -132,7 +133,7 @@ function addEdges(parent: THREE.Object3D, geo: THREE.BufferGeometry, pos: THREE.
   parent.add(edges);
 }
 
-// ─── Dashed connector lines ──────────────────────────────────
+// -─ Dashed connector lines -----------------
 
 function addDashedLine(scene: THREE.Scene, from: THREE.Vector3, to: THREE.Vector3) {
   const geo = new THREE.BufferGeometry().setFromPoints([from, to]);
@@ -168,7 +169,7 @@ function addZConnectors(
   }
 }
 
-// ─── Build scene ─────────────────────────────────────────────
+// -─ Build scene ----------------------─
 
 function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   // 0. PBR Environment
@@ -178,7 +179,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   scene.background = new THREE.Color(0xf0f4f7);
   pmrem.dispose();
 
-  // ─── Group A: Face panel at Z += GAP ───────────────────────
+  // -─ Group A: Face panel at Z += GAP -----------─
   const faceZ = GAP;
 
   const alphaMap = createPerforationAlphaMap();
@@ -187,14 +188,16 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   const faceMesh = new THREE.Mesh(faceGeo, faceMat);
   faceMesh.position.set(0, FH / 2, faceZ);
   faceMesh.castShadow = true;
+  faceMesh.userData.partId = 'panel';
   scene.add(faceMesh);
   addEdges(scene, faceGeo, faceMesh.position);
 
-  // ─── Group B: Filter at Z = 0 ─────────────────────────────
+  // -─ Group B: Filter at Z = 0 --------------─
   const filterZ = 0;
-  addBox(scene, FILTER_W, FILTER_H, FILTER_T, 0, FH / 2, filterZ, matFilter());
+  const filterMesh = addBox(scene, FILTER_W, FILTER_H, FILTER_T, 0, FH / 2, filterZ, matFilter());
+  filterMesh.userData.partId = 'filter';
 
-  // ─── Group C: Frame housing at Z -= GAP ────────────────────
+  // -─ Group C: Frame housing at Z -= GAP ----------
   const frameZ = -GAP;
 
   const frameShape = new THREE.Shape();
@@ -222,6 +225,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   frameMesh.position.set(0, 0, frameZ);
   frameMesh.castShadow = true;
   frameMesh.receiveShadow = true;
+  frameMesh.userData.partId = 'frame';
   scene.add(frameMesh);
 
   const frameEdges = new THREE.LineSegments(
@@ -234,7 +238,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   // Back panel of frame
   addBox(scene, FW, FH, 0.3, 0, FH / 2, frameZ - FD / 2 + 0.15, matSSBrushed());
 
-  // ─── Group D: Mounting flange at Z -= GAP*2 ───────────────
+  // -─ Group D: Mounting flange at Z -= GAP*2 -------─
   const flangeZ = -GAP * 2;
 
   const flangeShape = new THREE.Shape();
@@ -263,9 +267,10 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   const flangeMesh = new THREE.Mesh(flangeGeo, matFlange());
   flangeMesh.position.set(0, 0, flangeZ);
   flangeMesh.castShadow = true;
+  flangeMesh.userData.partId = 'flange';
   scene.add(flangeMesh);
 
-  // ─── Dashed connector lines ────────────────────────────────
+  // -─ Dashed connector lines ----------------
   // A ↔ B (face panel ↔ filter)
   addZConnectors(scene, FILTER_W / 2, FILTER_H / 2, FH / 2,
     faceZ - PANEL_T / 2, filterZ + FILTER_T / 2);
@@ -278,33 +283,34 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   addZConnectors(scene, FW / 2, FH / 2, FH / 2,
     frameZ - FD / 2, flangeZ + FLANGE_T);
 
-  // ─── Annotations ───────────────────────────────────────────
+  // -─ Annotations ---------------------─
   placeAnnotations(
     scene,
     [
-      { anchor: new THREE.Vector3(0, FH / 2, faceZ),
+      { partId: 'panel',  anchor: new THREE.Vector3(0, FH / 2, faceZ),
         label: 'Panel Perforated SUS 304' },
-      { anchor: new THREE.Vector3(0, FH / 2, filterZ),
+      { partId: 'filter', anchor: new THREE.Vector3(0, FH / 2, filterZ),
         label: 'Filter G4 Pre-Filter 20 mm' },
-      { anchor: new THREE.Vector3(FW / 2 - 1, FH / 2, frameZ),
+      { partId: 'frame',  anchor: new THREE.Vector3(FW / 2 - 1, FH / 2, frameZ),
         label: 'Frame Housing SUS 304' },
-      { anchor: new THREE.Vector3(FW / 2 + FLANGE_LIP * 0.5, FH / 2, flangeZ),
+      { partId: 'flange', anchor: new THREE.Vector3(FW / 2 + FLANGE_LIP * 0.5, FH / 2, flangeZ),
         label: 'Mounting Flange' },
-      { anchor: new THREE.Vector3(FACE_W / 4, FH - 3, faceZ),
-        label: '⌀3 mm Holes, Pitch 5 mm' },
+      { partId: 'panel',  anchor: new THREE.Vector3(FACE_W / 4, FH - 3, faceZ),
+        label: '3 mm Holes, Pitch 5 mm' },
     ],
     FW / 2 + 40,
     [-10, FH + 10],
   );
 }
 
-// ─── React component ─────────────────────────────────────────
+// -─ React component --------------------─
 
 export function ReturnAirGrilleExploded3D({ product }: Props) {
   const lastPreset = product.cameraPresets[product.cameraPresets.length - 1];
   const [activePreset, setActivePreset] = useState<string>(
     lastPreset?.name ?? '',
   );
+  const { attachHighlight } = useHighlightController();
 
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: {
@@ -315,6 +321,7 @@ export function ReturnAirGrilleExploded3D({ product }: Props) {
     onInit: (refs) => {
       buildScene(refs.scene, refs.renderer);
       if (lastPreset) applyCameraPreset(refs, lastPreset.position, lastPreset.target);
+      attachHighlight(refs);
     },
     deps: [product],
   });

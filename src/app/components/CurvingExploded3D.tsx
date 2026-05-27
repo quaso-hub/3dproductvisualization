@@ -1,22 +1,22 @@
 /**
- * CurvingExploded3D.tsx — EXPLODED VIEW
- * ─────────────────────────────────────────────────────────────
+ * CurvingExploded3D.tsx - EXPLODED VIEW
+ * ------------------------------─
  * Setiap komponen Curving R40 dipisahkan secara "depth-explode"
  * searah sumbu Z (maju-mundur), sehingga profil-L tetap terbaca
  * dari kamera isometric.
  *
  * Urutan layer dari belakang (+Z) ke depan (-Z):
- *   idx 4 — Panel Dinding / Lantai (konteks, paling belakang)
- *   idx 3 — Pop Rivets
- *   idx 2 — White Silicone
- *   idx 1 — Aluminium Angle (posisi referensi tengah)
- *   idx 0 — Anodized Coating (paling depan)
+ *   idx 4 - Panel Dinding / Lantai (konteks, paling belakang)
+ *   idx 3 - Pop Rivets
+ *   idx 2 - White Silicone
+ *   idx 1 - Aluminium Angle (posisi referensi tengah)
+ *   idx 0 - Anodized Coating (paling depan)
  *
  * Dashed corner lines menghubungkan kontur profil antar layer,
  * mirip explosion diagram teknik.
  *
  * Anotasi: elbow-leader ke kanan, vertikal offset bersih.
- * ─────────────────────────────────────────────────────────────
+ * ------------------------------─
  */
 
 import { useState } from 'react';
@@ -26,16 +26,17 @@ import {
   applyCameraPreset, downloadPNG, placeAnnotations,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
+import { useHighlightController } from '../hooks/useHighlightController';
 import { ViewerControls } from './ViewerControls';
 
 interface Props { product: Product }
 
-// ─── Profile constants (sama dengan Assembled) ───────────────
+// -─ Profile constants (sama dengan Assembled) -------─
 const W = 40;
 const T = 2;
 const R = 9;
 
-// ─── Profile Shape (identical copy — keep files independent) ─
+// -─ Profile Shape (identical copy - keep files independent) ─
 function buildCurvingShape(): THREE.Shape {
   const s = new THREE.Shape();
   s.moveTo(-W, W);
@@ -49,7 +50,7 @@ function buildCurvingShape(): THREE.Shape {
   return s;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────
+// -─ Helpers ------------------------─
 
 function mat(color: number, roughness: number, metalness: number, opacity = 1) {
   return new THREE.MeshStandardMaterial({
@@ -78,7 +79,7 @@ function dashed(p1: THREE.Vector3, p2: THREE.Vector3): THREE.Line {
   return line;
 }
 
-// ─── Scene builder ────────────────────────────────────────────
+// -─ Scene builder ----------------------
 
 function buildExplodedScene(scene: THREE.Scene, L: number) {
 
@@ -102,21 +103,25 @@ function buildExplodedScene(scene: THREE.Scene, L: number) {
   // Panjang display pendek di exploded: 80 unit saja agar proporsional
   const LE = 80;
 
-  // ── Layer 0: Anodized Coating ─────────────────────────────
+  // - Layer 0: Anodized Coating --------------─
   // Representasi: dua plat tipis melapisi sisi luar profil
+  const coatGroup = new THREE.Group();
+  coatGroup.userData.partId = 'coating';
+  scene.add(coatGroup);
+
   const coatGeoV = new THREE.BoxGeometry(1.2, W, LE);
   const coatV    = new THREE.Mesh(coatGeoV, mat(0xb8ccd8, 0.06, 0.97));
   coatV.position.set(-W - 0.6, W / 2, zPos[0]);
   coatV.castShadow = true;
-  scene.add(coatV);
+  coatGroup.add(coatV);
 
   const coatGeoH = new THREE.BoxGeometry(W, 1.2, LE);
   const coatH    = new THREE.Mesh(coatGeoH, mat(0xb8ccd8, 0.06, 0.97));
   coatH.position.set(0, -0.6, zPos[0]);
   coatH.castShadow = true;
-  scene.add(coatH);
+  coatGroup.add(coatH);
 
-  // ── Layer 1: Aluminium Angle body ────────────────────────
+  // - Layer 1: Aluminium Angle body ------------
   const profileGeo = new THREE.ExtrudeGeometry(buildCurvingShape(), {
     depth: LE,
     bevelEnabled: false,
@@ -126,6 +131,7 @@ function buildExplodedScene(scene: THREE.Scene, L: number) {
   const profileMesh = new THREE.Mesh(profileGeo, mat(0xc5d3de, 0.08, 0.92));
   profileMesh.position.z = zPos[1];
   profileMesh.castShadow = profileMesh.receiveShadow = true;
+  profileMesh.userData.partId = 'profile';
   scene.add(profileMesh);
 
   const edgeLines = new THREE.LineSegments(
@@ -135,8 +141,11 @@ function buildExplodedScene(scene: THREE.Scene, L: number) {
   edgeLines.position.z = zPos[1];
   scene.add(edgeLines);
 
-  // ── Layer 2: White Silicone ───────────────────────────────
-  // Dua strip tipis (H dan V)
+  // - Layer 2: White Silicone ---------------─
+  const siliconeGroup = new THREE.Group();
+  siliconeGroup.userData.partId = 'silicone';
+  scene.add(siliconeGroup);
+
   const sHLen = W - T * 2;
   const siliH = new THREE.Mesh(
     new THREE.BoxGeometry(sHLen, 2.5, LE),
@@ -144,19 +153,22 @@ function buildExplodedScene(scene: THREE.Scene, L: number) {
   );
   siliH.position.set((-T + W) / 2 - W / 2 + T / 2, -1.25, zPos[2]);
   siliH.castShadow = true;
-  scene.add(siliH);
+  siliconeGroup.add(siliH);
 
-  const sVLen = W - T * 2; // lebar strip silicone vertikal
+  const sVLen = W - T * 2;
   const siliV = new THREE.Mesh(
     new THREE.BoxGeometry(2.5, sVLen, LE),
     mat(0xf0f0ea, 0.72, 0.0),
   );
   siliV.position.set(-W - 1.25, T + sVLen / 2, zPos[2]);
   siliV.castShadow = true;
-  scene.add(siliV);
+  siliconeGroup.add(siliV);
 
-  // ── Layer 3: Pop Rivets ───────────────────────────────────
-  // Tampilkan hanya beberapa rivet representatif (3 buah)
+  // - Layer 3: Pop Rivets -----------------─
+  const rivetGroup = new THREE.Group();
+  rivetGroup.userData.partId = 'rivets';
+  scene.add(rivetGroup);
+
   const rMat       = mat(0x8fa0ae, 0.12, 0.96);
   const shaftGeo   = new THREE.CylinderGeometry(1.5, 1.5, T + 2, 20);
   const capGeo     = new THREE.SphereGeometry(1.8, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
@@ -164,43 +176,44 @@ function buildExplodedScene(scene: THREE.Scene, L: number) {
 
   rivetZs.forEach(rz => {
     const z = zPos[3] + rz;
-
-    // Rivet H (sayap horizontal)
     const shA = new THREE.Mesh(shaftGeo, rMat);
     shA.position.set(W * 0.35, 0, z);
-    scene.add(shA);
+    rivetGroup.add(shA);
     const cA = new THREE.Mesh(capGeo, rMat);
     cA.rotation.x = Math.PI;
     cA.position.set(W * 0.35, -(T / 2 + 1), z);
-    scene.add(cA);
+    rivetGroup.add(cA);
 
-    // Rivet V (sayap vertikal)
     const shB = new THREE.Mesh(shaftGeo, rMat);
     shB.rotation.z = Math.PI / 2;
     shB.position.set(-W, W * 0.55, z);
-    scene.add(shB);
+    rivetGroup.add(shB);
     const cB = new THREE.Mesh(capGeo, rMat);
     cB.rotation.z = -Math.PI / 2;
     cB.position.set(-(W + T / 2 + 1), W * 0.55, z);
-    scene.add(cB);
+    rivetGroup.add(cB);
   });
 
-  // ── Layer 4: Panel Dinding & Lantai (konteks) ─────────────
+  // - Layer 4: Panel Dinding & Lantai (konteks) ------─
+  const panelGroup = new THREE.Group();
+  panelGroup.userData.partId = 'panels';
+  scene.add(panelGroup);
+
   const wall = new THREE.Mesh(
     new THREE.BoxGeometry(SL, W * 2.8, LE),
     mat(0xd0e2f0, 0.40, 0.45, 0.65),
   );
   wall.position.set(-W - SL / 2, W * 0.9, zPos[4]);
-  scene.add(wall);
+  panelGroup.add(wall);
 
   const floor = new THREE.Mesh(
     new THREE.BoxGeometry(W * 2.8, SL, LE),
     mat(0xd0e2f0, 0.40, 0.45, 0.65),
   );
   floor.position.set(W * 0.9, -SL / 2, zPos[4]);
-  scene.add(floor);
+  panelGroup.add(floor);
 
-  // ── Dashed connection lines ───────────────────────────────
+  // - Dashed connection lines ---------------─
   // Garis sudut profil: 4 titik di kontur profil-L, dihubungkan antar layer
   // 4 corner points profil (dalam world space):
   //   TL = (-W, W)  TR = (-T, W)  BL = (-W, 0)  BR = (W, 0)
@@ -224,27 +237,28 @@ function buildExplodedScene(scene: THREE.Scene, L: number) {
     }
   });
 
-  // ── Annotations (CSS2D) ───────────────────────────────────
+  // - Annotations (CSS2D) -----------------─
   placeAnnotations(
     scene,
     [
-      { anchor: new THREE.Vector3(-W - 0.6, W * 0.6, zPos[0]),                   label: 'Anodized Coating',        labelZ: zPos[0] },
-      { anchor: new THREE.Vector3(-W / 2, W * 0.5, zPos[1]),                     label: 'Aluminium Angle 40×40',   labelZ: zPos[1] },
-      { anchor: new THREE.Vector3(-W - 1.25, T + (W - T * 2) * 0.5, zPos[2]),   label: 'White Silicone',           labelZ: zPos[2] },
-      { anchor: new THREE.Vector3(W * 0.35, -(T / 2 + 1.5), zPos[3]),           label: 'Pop Rivets',               labelZ: zPos[3] },
-      { anchor: new THREE.Vector3(W + 1, -2, zPos[4]),                           label: 'Panel Dinding / Lantai',  labelZ: zPos[4] },
+      { partId: 'coating',  anchor: new THREE.Vector3(-W - 0.6, W * 0.6, zPos[0]),                   label: 'Anodized Coating',        labelZ: zPos[0] },
+      { partId: 'profile',  anchor: new THREE.Vector3(-W / 2, W * 0.5, zPos[1]),                     label: 'Aluminium Angle 40x40',   labelZ: zPos[1] },
+      { partId: 'silicone', anchor: new THREE.Vector3(-W - 1.25, T + (W - T * 2) * 0.5, zPos[2]),    label: 'White Silicone',          labelZ: zPos[2] },
+      { partId: 'rivets',   anchor: new THREE.Vector3(W * 0.35, -(T / 2 + 1.5), zPos[3]),            label: 'Pop Rivets',              labelZ: zPos[3] },
+      { partId: 'panels',   anchor: new THREE.Vector3(W + 1, -2, zPos[4]),                           label: 'Panel Dinding / Lantai',  labelZ: zPos[4] },
     ],
     W + 65,
     [-W * 0.8, W * 1.2],
   );
 }
 
-// ─── React component ─────────────────────────────────────────
+// -─ React component --------------------─
 
 export function CurvingExploded3D({ product }: Props) {
   const [activePreset, setActivePreset] = useState<string>(
     product.cameraPresets[0]?.name ?? '',
   );
+  const { attachHighlight } = useHighlightController();
 
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: {
@@ -255,6 +269,7 @@ export function CurvingExploded3D({ product }: Props) {
     onInit: (refs) => {
       const L = product.dimensions.sceneHeight;
       buildExplodedScene(refs.scene, L);
+      attachHighlight(refs);
     },
     deps: [product],
   });

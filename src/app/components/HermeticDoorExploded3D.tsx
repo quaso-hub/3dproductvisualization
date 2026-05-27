@@ -27,6 +27,7 @@ import {
   applyCameraPreset, downloadPNG, placeAnnotations, visualThickness,
 } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
+import { useHighlightController } from '../hooks/useHighlightController';
 import { ViewerControls } from './ViewerControls';
 
 interface Props { product: Product }
@@ -452,6 +453,7 @@ export function HermeticDoorExploded3D({ product }: Props) {
   const [activePreset, setActivePreset] = useState<string>(
     product.cameraPresets[0]?.name ?? '',
   );
+  const { attachHighlight } = useHighlightController();
 
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: {
@@ -463,6 +465,7 @@ export function HermeticDoorExploded3D({ product }: Props) {
       buildExplodedScene(refs.scene, refs.renderer, product.layers);
       const p = product.cameraPresets[0];
       applyCameraPreset(refs, p.position, p.target);
+      attachHighlight(refs);
     },
     deps: [product],
   });
