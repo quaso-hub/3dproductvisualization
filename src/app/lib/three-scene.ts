@@ -142,6 +142,12 @@ export function createScene(opts: SceneOptions): SceneRefs {
       labelRenderer.setSize(width, height);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
+      // setSize() resets the drawing buffer; on-demand render loop must be
+      // told to re-draw, otherwise the canvas stays blank until the user
+      // interacts with OrbitControls. The render loop attaches `_invalidate`
+      // to the renderer in startRenderLoop().
+      const inv = (renderer as THREE.WebGLRenderer & { _invalidate?: () => void })._invalidate;
+      if (inv) inv();
     }
   });
   ro.observe(container);
@@ -236,6 +242,11 @@ export function startRenderLoop(
     invalidated = 2;
   };
 
+  // Expose invalidate so external pokes (ResizeObserver in createScene,
+  // renderer.shadowMap.needsUpdate after geometry swaps) can request a
+  // fresh frame without holding their own reference to this closure.
+  (renderer as THREE.WebGLRenderer & { _invalidate?: () => void })._invalidate = invalidate;
+
   const onChange = () => invalidate();
   controls.addEventListener('change', onChange);
   window.addEventListener('resize', onChange);
@@ -257,6 +268,7 @@ export function startRenderLoop(
       cancelAnimationFrame(frameId);
       controls.removeEventListener('change', onChange);
       window.removeEventListener('resize', onChange);
+      delete (renderer as THREE.WebGLRenderer & { _invalidate?: () => void })._invalidate;
     },
     invalidate,
   };
