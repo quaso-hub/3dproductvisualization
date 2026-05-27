@@ -187,56 +187,71 @@ function addMeshGroup(scene: THREE.Object3D, geos: THREE.BufferGeometry[], mat: 
 // ── Sculpted basin via Lathe profile + Extrude ─────────────────
 
 /**
- * Basin: walls + floor integral dengan countertop.
- * Rim TIDAK dibuat terpisah — countertop hole edge sudah jadi rim.
- * Hanya perlu: inner walls (4 sisi) + sloped floor + drain ring.
+ * Basin: 4 walls aligned dengan countertop hole edges + floor + drain.
+ * Countertop hole: X = cx±30, Z = -30 to +15 (center Z = -7.5)
+ * Wall outer faces tepat di hole edges supaya tidak ada gap/overlap.
  */
 function buildSculptedBasin(scene: THREE.Object3D, cx: number): void {
-  const bw = 60;
-  const bd = 45;
-  const bh = 25;     // 250mm depth
-  const baseY = Y_CT_TOP - bh;  // 55
+  const bw = 60;   // hole width = bw
+  const bd = 45;   // hole depth = bd
+  const bh = 25;   // basin depth 250mm
+  const wt = 1.5;  // wall thickness
 
-  // Basin inner dimensions (1.5u wall thickness each side)
-  const iw = bw - 3;   // 57
-  const id = bd - 3;   // 42
+  const baseY = Y_CT_TOP - bh;  // 55 = basin floor level
 
-  // 4 inner walls as individual boxes — simple, no extrude complexity
+  // Hole edges (world coords)
+  const xL = cx - bw / 2;   // cx - 30
+  const xR = cx + bw / 2;   // cx + 30
+  const zB = -7.5 - bd / 2; // -30  (back)
+  const zF = -7.5 + bd / 2; // +15  (front)
+
+  // Wall centers (outer face at hole edge, inner face = outer - wt)
   const wallMat = matBasinInterior();
 
-  // Front wall (toward user, +Z side)
-  const fwMesh = new THREE.Mesh(new THREE.BoxGeometry(iw, bh, 1.5), wallMat);
-  fwMesh.position.set(cx, baseY + bh / 2, -7.5 + id / 2);
+  // Front wall — outer face at zF=15
+  const fwZ = zF - wt / 2;   // 14.25
+  const fwW = bw;             // full width
+  const fwMesh = new THREE.Mesh(new THREE.BoxGeometry(fwW, bh, wt), wallMat);
+  fwMesh.position.set(cx, baseY + bh / 2, fwZ);
   fwMesh.castShadow = fwMesh.receiveShadow = true;
   scene.add(fwMesh);
 
-  // Back wall (-Z side)
-  const bwMesh = new THREE.Mesh(new THREE.BoxGeometry(iw, bh, 1.5), wallMat);
-  bwMesh.position.set(cx, baseY + bh / 2, -7.5 - id / 2);
+  // Back wall — outer face at zB=-30
+  const bwZ = zB + wt / 2;   // -29.25
+  const bwMesh = new THREE.Mesh(new THREE.BoxGeometry(fwW, bh, wt), wallMat);
+  bwMesh.position.set(cx, baseY + bh / 2, bwZ);
   bwMesh.castShadow = bwMesh.receiveShadow = true;
   scene.add(bwMesh);
 
-  // Left wall (-X side)
-  const lwMesh = new THREE.Mesh(new THREE.BoxGeometry(1.5, bh, id), wallMat);
-  lwMesh.position.set(cx - iw / 2, baseY + bh / 2, -7.5);
+  // Inner depth between front/back wall inner faces
+  const innerD = (zF - wt) - (zB + wt); // 13.5 - (-28.5) = 42
+
+  // Left wall — outer face at xL
+  const lwX = xL + wt / 2;
+  const lwMesh = new THREE.Mesh(new THREE.BoxGeometry(wt, bh, innerD), wallMat);
+  lwMesh.position.set(lwX, baseY + bh / 2, -7.5);
   lwMesh.castShadow = lwMesh.receiveShadow = true;
   scene.add(lwMesh);
 
-  // Right wall (+X side)
-  const rwMesh = new THREE.Mesh(new THREE.BoxGeometry(1.5, bh, id), wallMat);
-  rwMesh.position.set(cx + iw / 2, baseY + bh / 2, -7.5);
+  // Right wall — outer face at xR
+  const rwX = xR - wt / 2;
+  const rwMesh = new THREE.Mesh(new THREE.BoxGeometry(wt, bh, innerD), wallMat);
+  rwMesh.position.set(rwX, baseY + bh / 2, -7.5);
   rwMesh.castShadow = rwMesh.receiveShadow = true;
   scene.add(rwMesh);
 
-  // Basin floor (flat, slightly sloped toward drain center)
-  const floorGeo = new THREE.PlaneGeometry(iw - 3, id - 3, 16, 16);
+  // Inner width between left/right wall inner faces
+  const innerW = (xR - wt) - (xL + wt); // 57
+
+  // Basin floor
+  const floorGeo = new THREE.PlaneGeometry(innerW, innerD, 16, 16);
   floorGeo.rotateX(-Math.PI / 2);
   const pos = floorGeo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const px = pos.getX(i);
     const pz = pos.getZ(i);
     const r = Math.hypot(px, pz);
-    const maxR = Math.max((iw - 3) / 2, (id - 3) / 2);
+    const maxR = Math.max(innerW / 2, innerD / 2);
     pos.setY(i, pos.getY(i) - 0.5 * (1 - r / maxR));
   }
   floorGeo.computeVertexNormals();
@@ -245,7 +260,7 @@ function buildSculptedBasin(scene: THREE.Object3D, cx: number): void {
   floor.receiveShadow = true;
   scene.add(floor);
 
-  // Chrome drain ring — ON the floor center
+  // Chrome drain ring ON floor center
   const drainY = baseY + 0.3;
   const ringProfile: Array<[number, number]> = [
     [0, 0], [2.5, 0], [2.6, 0.3], [2.4, 0.5],
@@ -256,12 +271,10 @@ function buildSculptedBasin(scene: THREE.Object3D, cx: number): void {
   ring.castShadow = true;
   scene.add(ring);
 
-  // Strainer disc
   const strainer = new THREE.Mesh(beveledDisc(2.0, 0.15, 0.05, 32), matChrome());
   strainer.position.set(cx, drainY + 0.2, -7.5);
   scene.add(strainer);
 
-  // Drain throat going down
   const drainThroat = new THREE.Mesh(
     new THREE.CylinderGeometry(1.8, 1.8, 3.0, 24),
     new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.7, metalness: 0.3 }),
@@ -879,10 +892,10 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
   backWall.position.set(0, T_BASE + T_CAB / 2, -D / 2 + 0.5);
   backWall.castShadow = backWall.receiveShadow = true;
   cabinetGroup.add(backWall);
-  // Top — flush dengan countertop bottom (Y_CT_TOP - T_CT = 76)
-  // Naikkan 0.5 supaya top face tepat di 76, tidak ada gap visual
+  // Top — top face harus tepat di Y_CT_TOP - T_CT = 76 (countertop bottom)
+  // height=1, center di 75.5 → top face di 76 ✓
   const topShelf = new THREE.Mesh(new THREE.BoxGeometry(W, 1, D), cabMatte);
-  topShelf.position.set(0, Y_CAB_TOP, 0);
+  topShelf.position.set(0, Y_CAB_TOP - 0.5, 0);
   topShelf.castShadow = topShelf.receiveShadow = true;
   cabinetGroup.add(topShelf);
   // Left side
