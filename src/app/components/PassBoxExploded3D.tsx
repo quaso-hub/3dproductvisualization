@@ -1,14 +1,14 @@
 /**
- * PassBoxExploded3D.tsx — TRUE EXPLODED VIEW
- * ─────────────────────────────────────────────────────────────
- * Pass Box SUS-304 — komponen utama terpisah secara spasial:
+ * PassBoxExploded3D.tsx - TRUE EXPLODED VIEW
+ * ------------------------------─
+ * Pass Box SUS-304 - komponen utama terpisah secara spasial:
  *   • Front door → ditarik ke depan (+Z)
  *   • Back door  → ditarik ke belakang (-Z)
  *   • Top panel  → diangkat ke atas (+Y)
  *   • Body shell → tetap di tengah (tanpa tutup atas)
  *   • Dashed connector lines antar komponen
  *   • Interior terlihat jelas tanpa halangan
- * ─────────────────────────────────────────────────────────────
+ * ------------------------------─
  */
 
 import { useState } from 'react';
@@ -17,11 +17,12 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { Product, CameraPreset } from '../data/products';
 import { applyCameraPreset, downloadPNG, placeAnnotations } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
+import { useHighlightController } from '../hooks/useHighlightController';
 import { ViewerControls } from './ViewerControls';
 
 interface Props { product: Product }
 
-// ─── Dimensi (scene units, 1 unit = 10mm) ───────────────────
+// -─ Dimensi (scene units, 1 unit = 10mm) ---------─
 const OW = 80;
 const OH = 80;
 const OD = 50;
@@ -40,10 +41,10 @@ const GLASS_T = 1.2;
 
 const GASKET_W = 1.2;
 
-// ─── Explosion gap ──────────────────────────────────────────
+// -─ Explosion gap ---------------------
 const GAP = 30;  // 300mm gap between separated components
 
-// ─── Material factories ───────────────────────────────────────
+// -─ Material factories -------------------─
 
 function matSSBrushed() {
   return new THREE.MeshStandardMaterial({
@@ -83,7 +84,7 @@ function matUVLamp() {
   });
 }
 
-// ─── Geometry helpers ─────────────────────────────────────────
+// -─ Geometry helpers --------------------─
 
 function addBox(
   parent: THREE.Object3D,
@@ -115,7 +116,7 @@ function addCyl(
   return mesh;
 }
 
-// ─── Dashed connector lines ─────────────────────────────────
+// -─ Dashed connector lines ----------------─
 
 function addDashedLine(scene: THREE.Scene, from: THREE.Vector3, to: THREE.Vector3) {
   const geo = new THREE.BufferGeometry().setFromPoints([from, to]);
@@ -177,9 +178,9 @@ function addTopConnectors(
   }
 }
 
-// ─── Build a door assembly (flat, no rotation) ──────────────
+// -─ Build a door assembly (flat, no rotation) -------
 
-function buildDoorAssembly(scene: THREE.Scene, centerZ: number) {
+function buildDoorAssembly(parent: THREE.Object3D, centerZ: number) {
   // Door leaf with glass cutout
   const doorShape = new THREE.Shape();
   doorShape.moveTo(-DOOR_W / 2, -DOOR_H / 2);
@@ -202,7 +203,7 @@ function buildDoorAssembly(scene: THREE.Scene, centerZ: number) {
   const doorMesh = new THREE.Mesh(doorGeo, matSSBrushed());
   doorMesh.position.set(0, OH / 2, centerZ);
   doorMesh.castShadow = doorMesh.receiveShadow = true;
-  scene.add(doorMesh);
+  parent.add(doorMesh);
 
   // Edge lines
   const doorEdges = new THREE.LineSegments(
@@ -210,7 +211,7 @@ function buildDoorAssembly(scene: THREE.Scene, centerZ: number) {
     new THREE.LineBasicMaterial({ color: 0x8aa0b0, opacity: 0.12, transparent: true }),
   );
   doorEdges.position.copy(doorMesh.position);
-  scene.add(doorEdges);
+  parent.add(doorEdges);
 
   // Glass window
   const glassMesh = new THREE.Mesh(
@@ -218,7 +219,7 @@ function buildDoorAssembly(scene: THREE.Scene, centerZ: number) {
     matGlass(),
   );
   glassMesh.position.set(0, OH / 2, centerZ);
-  scene.add(glassMesh);
+  parent.add(glassMesh);
 
   // Glass frame
   const gfW = 2.0;
@@ -232,41 +233,41 @@ function buildDoorAssembly(scene: THREE.Scene, centerZ: number) {
   ].forEach(({ pos, size }) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(...size), gfMat);
     m.position.set(...pos);
-    scene.add(m);
+    parent.add(m);
   });
 
   // Rubber gasket (on door face)
   const gasketMat = matRubber();
-  addBox(scene, FRAME_W, GASKET_W, 2, 0, OH / 2 + FRAME_H / 2 - GASKET_W / 2, centerZ, gasketMat, false);
-  addBox(scene, FRAME_W, GASKET_W, 2, 0, OH / 2 - FRAME_H / 2 + GASKET_W / 2, centerZ, gasketMat, false);
-  addBox(scene, GASKET_W, FRAME_H - GASKET_W * 2, 2, -FRAME_W / 2 + GASKET_W / 2, OH / 2, centerZ, gasketMat, false);
-  addBox(scene, GASKET_W, FRAME_H - GASKET_W * 2, 2, FRAME_W / 2 - GASKET_W / 2, OH / 2, centerZ, gasketMat, false);
+  addBox(parent, FRAME_W, GASKET_W, 2, 0, OH / 2 + FRAME_H / 2 - GASKET_W / 2, centerZ, gasketMat, false);
+  addBox(parent, FRAME_W, GASKET_W, 2, 0, OH / 2 - FRAME_H / 2 + GASKET_W / 2, centerZ, gasketMat, false);
+  addBox(parent, GASKET_W, FRAME_H - GASKET_W * 2, 2, -FRAME_W / 2 + GASKET_W / 2, OH / 2, centerZ, gasketMat, false);
+  addBox(parent, GASKET_W, FRAME_H - GASKET_W * 2, 2, FRAME_W / 2 - GASKET_W / 2, OH / 2, centerZ, gasketMat, false);
 
-  // Handle — left side
+  // Handle - left side
   const handleX = -DOOR_W / 2 + 10;
   const handleZ = centerZ + 3.5;
   [-6, 6].forEach(dy => {
-    addBox(scene, 2, 2, 3, handleX, OH / 2 + dy, centerZ + 1.5, matSSPolished());
+    addBox(parent, 2, 2, 3, handleX, OH / 2 + dy, centerZ + 1.5, matSSPolished());
   });
-  addCyl(scene, 1.0, 1.0, 18, 12, handleX, OH / 2, handleZ, matSSPolished(), 0, 0);
+  addCyl(parent, 1.0, 1.0, 18, 12, handleX, OH / 2, handleZ, matSSPolished(), 0, 0);
 
   // Cam-lock
-  addBox(scene, 4, 6, 2, handleX, OH / 2 - 14, centerZ + 1.5, matSSPolished());
-  addCyl(scene, 0.6, 0.6, 5, 8, handleX, OH / 2 - 17, centerZ + 2.7, matSSPolished(), 0, 0);
+  addBox(parent, 4, 6, 2, handleX, OH / 2 - 14, centerZ + 1.5, matSSPolished());
+  addCyl(parent, 0.6, 0.6, 5, 8, handleX, OH / 2 - 17, centerZ + 2.7, matSSPolished(), 0, 0);
 
-  // 3 Hinges — right side
+  // 3 Hinges - right side
   const hingeMat = matSSPolished();
   [OH / 2 + DOOR_H / 2 - 8, OH / 2, OH / 2 - DOOR_H / 2 + 8].forEach(hy => {
-    addBox(scene, 3, 8, DOOR_T * 0.7, DOOR_W / 2, hy, centerZ, hingeMat);
-    addCyl(scene, 0.8, 0.8, 9, 10, DOOR_W / 2 + 0.5, hy, centerZ, hingeMat, 0, 0);
+    addBox(parent, 3, 8, DOOR_T * 0.7, DOOR_W / 2, hy, centerZ, hingeMat);
+    addCyl(parent, 0.8, 0.8, 9, 10, DOOR_W / 2 + 0.5, hy, centerZ, hingeMat, 0, 0);
   });
 }
 
-// ─── Scene builder ────────────────────────────────────────────
+// -─ Scene builder ----------------------
 
 function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
 
-  // ── 0. PBR Environment ──────────────────────────────────────
+  // - 0. PBR Environment -------------------
   renderer.toneMappingExposure = 0.80;
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -275,24 +276,32 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
 
   const ssMat = matSSBrushed();
 
-  // ── 1. Body shell (3 walls: bottom, left, right — NO top, NO front/back) ──
+  // - 1. Body shell (3 walls: bottom, left, right - NO top, NO front/back) -
+  const bodyGroup = new THREE.Group();
+  bodyGroup.userData.partId = 'body';
+  scene.add(bodyGroup);
+
   // Bottom panel
-  addBox(scene, OW, WT, OD, 0, WT / 2, 0, ssMat);
+  addBox(bodyGroup, OW, WT, OD, 0, WT / 2, 0, ssMat);
   // Left wall
-  addBox(scene, WT, OH - WT * 2, OD, -(OW / 2 - WT / 2), OH / 2, 0, ssMat);
+  addBox(bodyGroup, WT, OH - WT * 2, OD, -(OW / 2 - WT / 2), OH / 2, 0, ssMat);
   // Right wall
-  addBox(scene, WT, OH - WT * 2, OD, (OW / 2 - WT / 2), OH / 2, 0, ssMat);
+  addBox(bodyGroup, WT, OH - WT * 2, OD, (OW / 2 - WT / 2), OH / 2, 0, ssMat);
 
   // Bottom mounting flange
-  addBox(scene, OW + 3, 0.8, OD + 3, 0, 0.4, 0, matSSBrushed());
+  addBox(bodyGroup, OW + 3, 0.8, OD + 3, 0, 0.4, 0, matSSBrushed());
 
-  // ── 2. Top panel — lifted up by GAP ──────────────────────────
+  // - 2. Top panel - lifted up by GAP -------------
+  const topGroup = new THREE.Group();
+  topGroup.userData.partId = 'top';
+  scene.add(topGroup);
+
   const topY = OH - WT / 2 + GAP;
-  addBox(scene, OW, WT, OD, 0, topY, 0, ssMat);
+  addBox(topGroup, OW, WT, OD, 0, topY, 0, ssMat);
 
   // Top ports on lifted panel
   [-8, 8].forEach(px => {
-    addCyl(scene, 1.0, 1.0, WT + 0.5, 12, px, topY, -10, matSSPolished(), 0, 0);
+    addCyl(topGroup, 1.0, 1.0, WT + 0.5, 12, px, topY, -10, matSSPolished(), 0, 0);
   });
 
   // Top panel edge lines
@@ -302,35 +311,47 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     new THREE.LineBasicMaterial({ color: 0x8aa0b0, opacity: 0.12, transparent: true }),
   );
   topEdges.position.set(0, topY, 0);
-  scene.add(topEdges);
+  topGroup.add(topEdges);
 
-  // Connector lines: body → top panel
+  // Connector lines: body → top panel (kept on scene root)
   addTopConnectors(scene, OW / 2, OD / 2, OH - WT, topY - WT / 2);
 
-  // ── 3. Front door — pulled forward by GAP ────────────────────
+  // - 3. Front door - pulled forward by GAP ----------
+  const frontDoorGroup = new THREE.Group();
+  frontDoorGroup.userData.partId = 'front-door';
+  scene.add(frontDoorGroup);
+
   const frontDoorZ = OD / 2 + GAP;
-  buildDoorAssembly(scene, frontDoorZ);
+  buildDoorAssembly(frontDoorGroup, frontDoorZ);
 
   // Connector lines: body front face → front door
   addCornerConnectors(scene, DOOR_W / 2, DOOR_H / 2, OH / 2, OD / 2, frontDoorZ - DOOR_T / 2);
 
-  // ── 4. Back door — pulled backward by GAP ────────────────────
+  // - 4. Back door - pulled backward by GAP ----------
+  const backDoorGroup = new THREE.Group();
+  backDoorGroup.userData.partId = 'back-door';
+  scene.add(backDoorGroup);
+
   const backDoorZ = -(OD / 2 + GAP);
-  buildDoorAssembly(scene, backDoorZ);
+  buildDoorAssembly(backDoorGroup, backDoorZ);
 
   // Connector lines: body back face → back door
   addCornerConnectors(scene, DOOR_W / 2, DOOR_H / 2, OH / 2, -OD / 2, backDoorZ + DOOR_T / 2);
 
-  // ── 5. Interior detail (fully visible) ────────────────────────
+  // - 5. Interior detail (fully visible) ------------
+  const interiorGroup = new THREE.Group();
+  interiorGroup.userData.partId = 'interior';
+  scene.add(interiorGroup);
+
   const innerW = OW - WT * 2 - 1;
   const innerH = OH - WT * 2 - 1;
   const innerD = OD - 2;
   const mirrorMat = matSSMirror();
 
-  // Interior walls (no front/back — open, visible)
-  addBox(scene, innerW, 0.5, innerD, 0, WT + 0.5, 0, mirrorMat);       // Floor
-  addBox(scene, 0.5, innerH, innerD, -(innerW / 2), OH / 2, 0, mirrorMat); // Left
-  addBox(scene, 0.5, innerH, innerD, (innerW / 2), OH / 2, 0, mirrorMat);  // Right
+  // Interior walls (no front/back - open, visible)
+  addBox(interiorGroup, innerW, 0.5, innerD, 0, WT + 0.5, 0, mirrorMat);       // Floor
+  addBox(interiorGroup, 0.5, innerH, innerD, -(innerW / 2), OH / 2, 0, mirrorMat); // Left
+  addBox(interiorGroup, 0.5, innerH, innerD, (innerW / 2), OH / 2, 0, mirrorMat);  // Right
 
   // Interior rounded corners
   const cornerR = 2;
@@ -346,25 +367,29 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     const corner = new THREE.Mesh(cornerGeo, cornerMat);
     corner.position.set(x, OH / 2, z);
     corner.rotation.y = rotY;
-    scene.add(corner);
+    interiorGroup.add(corner);
   });
 
   // UV lamp
   addCyl(
-    scene, 0.8, 0.8, 30, 8,
+    interiorGroup, 0.8, 0.8, 30, 8,
     0, OH - WT - 1.5, 0,
     matUVLamp(),
     0, Math.PI / 2,
   );
 
-  // ── 6. Control panel (on body left side) ─────────────────────
+  // - 6. Control panel (on body left side) ----------─
+  const controlGroup = new THREE.Group();
+  controlGroup.userData.partId = 'control-panel';
+  scene.add(controlGroup);
+
   const panelX = -(OW / 2);
   const panelY = OH - 8;
   const panelZ = -OD / 4;
 
-  addBox(scene, 0.5, 5, 9, panelX - 0.3, panelY, panelZ,
+  addBox(controlGroup, 0.5, 5, 9, panelX - 0.3, panelY, panelZ,
     new THREE.MeshStandardMaterial({ color: 0xe8e4d8, roughness: 0.70, metalness: 0.0 }), false);
-  addBox(scene, 0.8, 2, 1.2, panelX - 0.6, panelY + 1, panelZ - 2,
+  addBox(controlGroup, 0.8, 2, 1.2, panelX - 0.6, panelY + 1, panelZ - 2,
     new THREE.MeshStandardMaterial({ color: 0xd91a1a, roughness: 0.60, metalness: 0.0 }), false);
   const ledMesh = new THREE.Mesh(
     new THREE.SphereGeometry(0.5, 8, 8),
@@ -374,30 +399,38 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     }),
   );
   ledMesh.position.set(panelX - 0.6, panelY - 1, panelZ - 2);
-  scene.add(ledMesh);
+  controlGroup.add(ledMesh);
 
-  // ── 7. Annotations ──────────────────────────────────────────
+  // - 7. Annotations ---------------------
   placeAnnotations(
     scene,
     [
-      { anchor: new THREE.Vector3(0, OH / 2, frontDoorZ),                     label: 'Pintu Depan SUS 304' },
-      { anchor: new THREE.Vector3(0, OH / 2, frontDoorZ - DOOR_T / 2),       label: 'Clear Glass 12mm' },
-      { anchor: new THREE.Vector3(0, topY, 0),                                label: 'Panel Atas (Diangkat)' },
-      { anchor: new THREE.Vector3(innerW / 2 - 1, OH / 2, 0),                label: 'Interior Mirror + UV Lamp' },
-      { anchor: new THREE.Vector3(0, OH / 2, backDoorZ),                      label: 'Pintu Belakang (Identik)' },
-      { anchor: new THREE.Vector3(-(OW / 2) - 0.3, OH - 8, -OD / 4),        label: 'Control Panel PLC' },
+      { partId: 'front-door',
+        anchor: new THREE.Vector3(0, OH / 2, frontDoorZ),                     label: 'Pintu Depan SUS 304' },
+      { partId: 'front-door',
+        anchor: new THREE.Vector3(0, OH / 2, frontDoorZ - DOOR_T / 2),       label: 'Clear Glass 12mm' },
+      { partId: 'top',
+        anchor: new THREE.Vector3(0, topY, 0),                                label: 'Panel Atas (Diangkat)' },
+      { partId: 'interior',
+        anchor: new THREE.Vector3(innerW / 2 - 1, OH / 2, 0),                label: 'Interior Mirror + UV Lamp' },
+      { partId: 'back-door',
+        anchor: new THREE.Vector3(0, OH / 2, backDoorZ),                      label: 'Pintu Belakang (Identik)' },
+      { partId: 'control-panel',
+        anchor: new THREE.Vector3(-(OW / 2) - 0.3, OH - 8, -OD / 4),        label: 'Control Panel PLC' },
     ],
     OW / 2 + 55,
     [-5, topY + 5],
   );
 }
 
-// ─── React component ──────────────────────────────────────────
+// -─ React component ---------------------
 
 export function PassBoxExploded3D({ product }: Props) {
   const [activePreset, setActivePreset] = useState<string>(
     product.cameraPresets[4]?.name ?? product.cameraPresets[0]?.name ?? '',
   );
+
+  const { attachHighlight } = useHighlightController();
 
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: {
@@ -409,6 +442,7 @@ export function PassBoxExploded3D({ product }: Props) {
       buildScene(refs.scene, refs.renderer);
       const p = product.cameraPresets[4] ?? product.cameraPresets[0];
       applyCameraPreset(refs, p.position, p.target);
+      attachHighlight(refs);
     },
     deps: [product],
   });

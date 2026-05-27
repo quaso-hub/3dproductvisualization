@@ -1,7 +1,7 @@
 /**
- * SurgicalPanelExploded3D.tsx — EXPLODED VIEW
- * ─────────────────────────────────────────────────────────────
- * Surgical Control Panel Room Touchscreen — komponen terpisah.
+ * SurgicalPanelExploded3D.tsx - EXPLODED VIEW
+ * ------------------------------─
+ * Surgical Control Panel Room Touchscreen - komponen terpisah.
  *
  * 5 kelompok komponen dipisahkan sepanjang sumbu Z (depth):
  *   E. Glass overlay + Buttons    → Z += GAP×2  (depan)
@@ -11,7 +11,7 @@
  *   A. Control Module (PCB)       → Z -= GAP×2  (paling belakang)
  *
  * Tidak ada wall fragment di exploded view.
- * ─────────────────────────────────────────────────────────────
+ * ------------------------------─
  */
 
 import { useState } from 'react';
@@ -20,12 +20,13 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { Product, CameraPreset } from '../data/products';
 import { applyCameraPreset, downloadPNG, placeAnnotations } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
+import { useHighlightController } from '../hooks/useHighlightController';
 import { ViewerControls } from './ViewerControls';
 import { createScreenUITexture } from './surgical-panel-texture';
 
 interface Props { product: Product }
 
-// ─── Dimensi (scene units, 1 unit = 10mm) ───────────────────
+// -─ Dimensi (scene units, 1 unit = 10mm) ---------─
 const HW = 45;          // housing width  450mm
 const HH = 31;          // housing height 310mm
 const FD = 8.5;         // housing depth  85mm
@@ -47,7 +48,7 @@ const FLANGE_T   = 0.3;
 
 const GAP = 12; // 120mm explosion separation
 
-// ─── Material factories ──────────────────────────────────────
+// -─ Material factories -------------------
 
 function matSS304() {
   return new THREE.MeshStandardMaterial({
@@ -87,7 +88,7 @@ function matPCBCase() {
   });
 }
 
-// ─── Geometry helpers ────────────────────────────────────────
+// -─ Geometry helpers --------------------
 
 function addBox(
   parent: THREE.Object3D, w: number, h: number, d: number,
@@ -115,7 +116,7 @@ function addCyl(
   return mesh;
 }
 
-// ─── Dashed connector lines ──────────────────────────────────
+// -─ Dashed connector lines -----------------
 
 function addDashedLine(scene: THREE.Scene, from: THREE.Vector3, to: THREE.Vector3) {
   const geo = new THREE.BufferGeometry().setFromPoints([from, to]);
@@ -150,7 +151,7 @@ function addZConnectors(
   }
 }
 
-// ─── Build scene ─────────────────────────────────────────────
+// -─ Build scene ----------------------─
 
 function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   // 0. PBR Environment
@@ -160,23 +161,31 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   scene.background = new THREE.Color(0xf0f4f7);
   pmrem.dispose();
 
-  // ─── Group A: Control Module (PCB) at Z -= GAP×2 ──────────
+  // -─ Group A: Control Module (PCB) at Z -= GAP×2 -----
   const zA = -GAP * 2;
 
+  const controlGroup = new THREE.Group();
+  controlGroup.userData.partId = 'control-module';
+  scene.add(controlGroup);
+
   // PCB module case
-  addBox(scene, HW - 4, HH - 8, 3, 0, HH / 2, zA, matPCBCase());
+  addBox(controlGroup, HW - 4, HH - 8, 3, 0, HH / 2, zA, matPCBCase());
   // PCB board inside
-  addBox(scene, HW - 8, HH - 12, 0.3, 0, HH / 2, zA + 1.7, matPCB());
+  addBox(controlGroup, HW - 8, HH - 12, 0.3, 0, HH / 2, zA + 1.7, matPCB());
   // Some ICs on the PCB (small blocks)
   const icMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.4, metalness: 0.3 });
-  addBox(scene, 4, 4, 0.5, -8, HH / 2 + 4, zA + 2, icMat);
-  addBox(scene, 6, 3, 0.5, 5, HH / 2 - 2, zA + 2, icMat);
-  addBox(scene, 3, 5, 0.5, 12, HH / 2 + 3, zA + 2, icMat);
+  addBox(controlGroup, 4, 4, 0.5, -8, HH / 2 + 4, zA + 2, icMat);
+  addBox(controlGroup, 6, 3, 0.5, 5, HH / 2 - 2, zA + 2, icMat);
+  addBox(controlGroup, 3, 5, 0.5, 12, HH / 2 + 3, zA + 2, icMat);
   // Power connector
-  addBox(scene, 3, 2, 1.5, -15, HH / 2 - 5, zA + 2, new THREE.MeshStandardMaterial({ color: 0x2196f3, roughness: 0.5, metalness: 0.2 }));
+  addBox(controlGroup, 3, 2, 1.5, -15, HH / 2 - 5, zA + 2, new THREE.MeshStandardMaterial({ color: 0x2196f3, roughness: 0.5, metalness: 0.2 }));
 
-  // ─── Group B: Mounting flange at Z -= GAP ──────────────────
+  // -─ Group B: Mounting flange at Z -= GAP ---------
   const zB = -GAP;
+
+  const flangeGroup = new THREE.Group();
+  flangeGroup.userData.partId = 'flange';
+  scene.add(flangeGroup);
 
   const flangeShape = new THREE.Shape();
   const fhw = HW / 2 + FLANGE_LIP;
@@ -198,7 +207,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   const flangeMesh = new THREE.Mesh(flangeGeo, matFlange());
   flangeMesh.position.set(0, 0, zB);
   flangeMesh.castShadow = true;
-  scene.add(flangeMesh);
+  flangeGroup.add(flangeMesh);
 
   // Mounting screws on flange
   const screwMat = new THREE.MeshStandardMaterial({ color: 0xe0e8f0, roughness: 0.10, metalness: 0.97 });
@@ -209,11 +218,15 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     [ (HW / 2 + FLANGE_LIP * 0.5),  HH + FLANGE_LIP * 0.5],
   ];
   for (const [sx, sy] of screwPos) {
-    addCyl(scene, 0.5, 0.5, 0.3, 12, sx, sy, zB + FLANGE_T + 0.15, screwMat, Math.PI / 2);
+    addCyl(flangeGroup, 0.5, 0.5, 0.3, 12, sx, sy, zB + FLANGE_T + 0.15, screwMat, Math.PI / 2);
   }
 
-  // ─── Group C: Housing body at Z = 0 ───────────────────────
+  // -─ Group C: Housing body at Z = 0 -----------─
   const zC = 0;
+
+  const housingGroup = new THREE.Group();
+  housingGroup.userData.partId = 'housing';
+  scene.add(housingGroup);
 
   const housingShape = new THREE.Shape();
   housingShape.moveTo(-HW / 2, 0);
@@ -241,43 +254,55 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   housingMesh.position.set(0, 0, zC);
   housingMesh.castShadow = true;
   housingMesh.receiveShadow = true;
-  scene.add(housingMesh);
+  housingGroup.add(housingMesh);
 
   const housingEdges = new THREE.LineSegments(
     new THREE.EdgesGeometry(housingGeo),
     new THREE.LineBasicMaterial({ color: 0x8aa0b0, opacity: 0.12, transparent: true }),
   );
   housingEdges.position.copy(housingMesh.position);
-  scene.add(housingEdges);
+  housingGroup.add(housingEdges);
 
   // Back panel
-  addBox(scene, HW, HH, 0.3, 0, HH / 2, zC - FD / 2 + 0.15, matSS304());
+  addBox(housingGroup, HW, HH, 0.3, 0, HH / 2, zC - FD / 2 + 0.15, matSS304());
 
   // Dark bezel backing (visible through opening)
-  addBox(scene, OPENING_W, OPENING_H, 0.1, 0, OPENING_CY, zC + FD / 2 - 0.35, matDarkBezel());
+  addBox(housingGroup, OPENING_W, OPENING_H, 0.1, 0, OPENING_CY, zC + FD / 2 - 0.35, matDarkBezel());
 
-  // Speaker grill on right side
+  // Speaker grill on right side (separate partId for highlight)
+  const speakerGroup = new THREE.Group();
+  speakerGroup.userData.partId = 'speaker';
+  scene.add(speakerGroup);
+
   const grillMat = new THREE.MeshStandardMaterial({ color: 0x555f6a, roughness: 0.45, metalness: 0.80 });
-  addBox(scene, 0.15, 6, 4, HW / 2 + 0.08, HH / 2, zC, grillMat);
+  addBox(speakerGroup, 0.15, 6, 4, HW / 2 + 0.08, HH / 2, zC, grillMat);
 
-  // ─── Group D: LCD Touchscreen at Z += GAP ──────────────────
+  // -─ Group D: LCD Touchscreen at Z += GAP ---------
   const zD = GAP;
+
+  const screenGroup = new THREE.Group();
+  screenGroup.userData.partId = 'screen';
+  scene.add(screenGroup);
 
   const screenTex = createScreenUITexture();
   const screenMat = new THREE.MeshBasicMaterial({ map: screenTex });
   const screenGeo = new THREE.PlaneGeometry(SCREEN_W, SCREEN_H);
   const screenMesh = new THREE.Mesh(screenGeo, screenMat);
   screenMesh.position.set(0, OPENING_CY, zD);
-  scene.add(screenMesh);
+  screenGroup.add(screenMesh);
 
-  // ─── Group E: Glass + Buttons at Z += GAP×2 ───────────────
+  // -─ Group E: Glass + Buttons at Z += GAP×2 -------─
   const zE = GAP * 2;
+
+  const glassGroup = new THREE.Group();
+  glassGroup.userData.partId = 'glass';
+  scene.add(glassGroup);
 
   // Glass overlay
   const glassGeo = new THREE.PlaneGeometry(OPENING_W - 0.5, OPENING_H - 0.5);
   const glassMesh = new THREE.Mesh(glassGeo, matGlass());
   glassMesh.position.set(0, OPENING_CY, zE);
-  scene.add(glassMesh);
+  glassGroup.add(glassMesh);
 
   // Subtle glass edge highlight
   const glassEdges = new THREE.LineSegments(
@@ -285,18 +310,22 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     new THREE.LineBasicMaterial({ color: 0x90caf9, opacity: 0.25, transparent: true }),
   );
   glassEdges.position.set(0, OPENING_CY, zE);
-  scene.add(glassEdges);
+  glassGroup.add(glassEdges);
 
-  // Function buttons
+  // Function buttons (separate partId)
+  const buttonsGroup = new THREE.Group();
+  buttonsGroup.userData.partId = 'buttons';
+  scene.add(buttonsGroup);
+
   const btnSpanX = HW - BEZEL_L - BEZEL_R - 4;
   const colors = [0x42A5F5, 0x42A5F5, 0x42A5F5, 0x66BB6A, 0xFF1744, 0xFFD600];
   for (let i = 0; i < 6; i++) {
     const bx = -btnSpanX / 2 + (i * btnSpanX) / 5;
-    addCyl(scene, 0.6, 0.6, 0.2, 16, bx, BEZEL_B / 2, zE - 0.5,
+    addCyl(buttonsGroup, 0.6, 0.6, 0.2, 16, bx, BEZEL_B / 2, zE - 0.5,
       new THREE.MeshBasicMaterial({ color: colors[i] }), Math.PI / 2);
   }
 
-  // ─── Dashed connector lines ────────────────────────────────
+  // -─ Dashed connector lines ----------------
   // A ↔ B (PCB ↔ flange)
   addZConnectors(scene, HW / 2 - 2, HH / 2 - 4, HH / 2, zA + 1.5, zB);
 
@@ -309,23 +338,30 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   // D ↔ E (screen ↔ glass)
   addZConnectors(scene, SCREEN_W / 2, SCREEN_H / 2, OPENING_CY, zD, zE);
 
-  // ─── Annotations ──────────────────────────────────────────
+  // -─ Annotations ---------------------
   placeAnnotations(
     scene,
     [
-      { anchor: new THREE.Vector3(0, HH / 2, zA),
+      { partId: 'control-module',
+        anchor: new THREE.Vector3(0, HH / 2, zA),
         label: 'Control Module (PLC + Modbus TCP/IP)' },
-      { anchor: new THREE.Vector3(HW / 2 + FLANGE_LIP * 0.5, HH / 2, zB),
+      { partId: 'flange',
+        anchor: new THREE.Vector3(HW / 2 + FLANGE_LIP * 0.5, HH / 2, zB),
         label: 'Mounting Flange + Baut ×4' },
-      { anchor: new THREE.Vector3(HW / 2 - 1, HH / 2, zC),
+      { partId: 'housing',
+        anchor: new THREE.Vector3(HW / 2 - 1, HH / 2, zC),
         label: 'Housing SUS 304 (450×310×85 mm)' },
-      { anchor: new THREE.Vector3(0, OPENING_CY, zD),
+      { partId: 'screen',
+        anchor: new THREE.Vector3(0, OPENING_CY, zD),
         label: 'LCD 15.6" Full HD Touchscreen' },
-      { anchor: new THREE.Vector3(0, OPENING_CY + OPENING_H / 2 - 1, zE),
+      { partId: 'glass',
+        anchor: new THREE.Vector3(0, OPENING_CY + OPENING_H / 2 - 1, zE),
         label: 'Tempered Glass Cover (IP65)' },
-      { anchor: new THREE.Vector3(0, BEZEL_B / 2, zE - 0.5),
+      { partId: 'buttons',
+        anchor: new THREE.Vector3(0, BEZEL_B / 2, zE - 0.5),
         label: 'Button Kontrol ×6 (LED Backlit)' },
-      { anchor: new THREE.Vector3(HW / 2, HH / 2, zC),
+      { partId: 'speaker',
+        anchor: new THREE.Vector3(HW / 2, HH / 2, zC),
         label: 'Speaker Grill (Audio Alarm)' },
     ],
     HW / 2 + 35,
@@ -333,13 +369,15 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   );
 }
 
-// ─── React component ─────────────────────────────────────────
+// -─ React component --------------------─
 
 export function SurgicalPanelExploded3D({ product }: Props) {
   const lastPreset = product.cameraPresets[product.cameraPresets.length - 1];
   const [activePreset, setActivePreset] = useState<string>(
     lastPreset?.name ?? '',
   );
+
+  const { attachHighlight } = useHighlightController();
 
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: {
@@ -350,6 +388,7 @@ export function SurgicalPanelExploded3D({ product }: Props) {
     onInit: (refs) => {
       buildScene(refs.scene, refs.renderer);
       if (lastPreset) applyCameraPreset(refs, lastPreset.position, lastPreset.target);
+      attachHighlight(refs);
     },
     deps: [product],
   });
