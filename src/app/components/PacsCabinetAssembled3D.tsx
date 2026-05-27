@@ -12,7 +12,7 @@
  * ------------------------------─
  */
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Product, CameraPreset } from '../data/products';
@@ -151,12 +151,24 @@ interface DoorBuildResult {
   hingeMeshes: THREE.Mesh[];
 }
 
+/**
+ * buildDoor — builds one swing door entirely inside `pivotGroup`.
+ *
+ * All positions are expressed in pivot-local space:
+ *   localX = worldX - pivotX
+ *
+ * This means rotating pivotGroup.rotation.y swings the door
+ * correctly around its hinge edge (the pivot origin).
+ */
 function buildDoor(
-  scene: THREE.Scene,
-  doorGroup: THREE.Object3D,
+  pivotGroup: THREE.Group,
+  pivotX: number,
   xCenter: number,
   isRightDoor: boolean,
 ): DoorBuildResult {
+  // Helper: convert world X to pivot-local X
+  const lx = (wx: number) => wx - pivotX;
+
   const doorZ = OD / 2 - DOOR_T / 2;
   const result: DoorBuildResult = {
     glassMeshes: [],
@@ -197,9 +209,9 @@ function buildDoor(
   doorGeo.translate(0, 0, -DOOR_T / 2);
 
   const doorMesh = new THREE.Mesh(doorGeo, matSSBrushed());
-  doorMesh.position.set(xCenter, DOOR_Y, doorZ);
+  doorMesh.position.set(lx(xCenter), DOOR_Y, doorZ);
   doorMesh.castShadow = doorMesh.receiveShadow = true;
-  doorGroup.add(doorMesh);
+  pivotGroup.add(doorMesh);
 
   // Edge lines
   const doorEdges = new THREE.LineSegments(
@@ -207,23 +219,23 @@ function buildDoor(
     new THREE.LineBasicMaterial({ color: 0x8aa0b0, opacity: 0.12, transparent: true }),
   );
   doorEdges.position.copy(doorMesh.position);
-  doorGroup.add(doorEdges);
+  pivotGroup.add(doorEdges);
 
-  // Glass panels (2 per door)
+  // Glass panels (2 per door) — inside pivot group
   const glassMat = matGlass();
   [upperCY, lowerCY].forEach(cy => {
     const glass = new THREE.Mesh(
       new THREE.BoxGeometry(GLASS_W, GLASS_H, GLASS_T),
       glassMat,
     );
-    glass.position.set(xCenter, DOOR_Y + cy, doorZ);
-    scene.add(glass);
+    glass.position.set(lx(xCenter), DOOR_Y + cy, doorZ);
+    pivotGroup.add(glass);
     result.glassMeshes.push(glass);
   });
 
-  // Horizontal divider bar (between upper and lower glass)
-  addBox(doorGroup, GLASS_W + 2, DIVIDER_H, DOOR_T * 0.8,
-    xCenter, DOOR_Y, doorZ, matSSBrushed());
+  // Horizontal divider bar
+  addBox(pivotGroup, GLASS_W + 2, DIVIDER_H, DOOR_T * 0.8,
+    lx(xCenter), DOOR_Y, doorZ, matSSBrushed());
 
   // Handle - vertical bar at INNER edge of door
   const handleSign = isRightDoor ? -1 : 1;
@@ -233,20 +245,20 @@ function buildDoor(
 
   // Handle brackets (2 mounting points)
   [-6, 6].forEach(dy => {
-    const bracket = addBox(scene, 1.5, 1.5, 2.5, handleX, handleY + dy, OD / 2 + 1, matSSPolished());
+    const bracket = addBox(pivotGroup, 1.5, 1.5, 2.5, lx(handleX), handleY + dy, OD / 2 + 1, matSSPolished());
     result.handleMeshes.push(bracket);
   });
   // Handle bar (vertical cylinder)
-  const handleBar = addCyl(scene, HANDLE_DIA / 2, HANDLE_DIA / 2, HANDLE_LEN, 12,
-    handleX, handleY, handleZ, matSSPolished(), 0, 0);
+  const handleBar = addCyl(pivotGroup, HANDLE_DIA / 2, HANDLE_DIA / 2, HANDLE_LEN, 12,
+    lx(handleX), handleY, handleZ, matSSPolished(), 0, 0);
   result.handleMeshes.push(handleBar);
 
   // Cam-lock (right door only)
   if (isRightDoor) {
     const lockX = handleX;
     const lockY = handleY - HANDLE_LEN / 2 - 4;
-    const lockBody = addBox(scene, 3, 4, 2, lockX, lockY, OD / 2 + 1, matSSPolished());
-    const lockCyl = addCyl(scene, 0.4, 0.4, 1.5, 8, lockX, lockY, OD / 2 + 2.2,
+    const lockBody = addBox(pivotGroup, 3, 4, 2, lx(lockX), lockY, OD / 2 + 1, matSSPolished());
+    const lockCyl = addCyl(pivotGroup, 0.4, 0.4, 1.5, 8, lx(lockX), lockY, OD / 2 + 2.2,
       matSSPolished(), Math.PI / 2, 0);
     result.lockMeshes.push(lockBody, lockCyl);
   }
@@ -256,16 +268,28 @@ function buildDoor(
   const hingeX = xCenter + hingeSign * (DOOR_W / 2);
   const hingeMat = matSSPolished();
   [DOOR_Y + DOOR_H / 2 - 10, DOOR_Y, DOOR_Y - DOOR_H / 2 + 10].forEach(hy => {
-    const hinge = addBox(scene, 1, 6, DOOR_T * 0.8, hingeX + hingeSign * 0.5, hy, doorZ, hingeMat, false);
+    const hinge = addBox(pivotGroup, 1, 6, DOOR_T * 0.8,
+      lx(hingeX) + hingeSign * 0.5, hy, doorZ, hingeMat, false);
     result.hingeMeshes.push(hinge);
   });
 
   return result;
 }
 
+// -─ Door animation constants -----------
+// Pivot = outer hinge edge X for each door
+const LEFT_HINGE_X  = -(OW / 2 - WT);   // -58  (left wall inner face)
+const RIGHT_HINGE_X =  (OW / 2 - WT);   //  58  (right wall inner face)
+const DOOR_OPEN_ANGLE = Math.PI / 2;     // 90° swing
+
 // -─ Scene builder ----------------------
 
-function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
+interface SceneExtras {
+  leftPivot: THREE.Group;
+  rightPivot: THREE.Group;
+}
+
+function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): SceneExtras {
 
   // - 0. PBR Environment -------------------
   renderer.toneMappingExposure = 0.85;
@@ -314,55 +338,43 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
       0, OH - WT - frameTopH / 2, OD / 2 - WT / 2, ssMat);
   }
 
-  // - 4. Doors ------------------------
-  const doorLeftGroup = new THREE.Group();
-  doorLeftGroup.userData.partId = 'door-left';
-  scene.add(doorLeftGroup);
-  const leftBuild = buildDoor(scene, doorLeftGroup, LEFT_DOOR_X, false);
+  // - 4. Doors with pivot groups for swing animation --------
+  //
+  // Each pivot group is placed at the hinge edge (world X).
+  // buildDoor receives the pivot group and pivotX so it can
+  // express all positions in pivot-local space (worldX - pivotX).
+  // Rotating pivot.rotation.y swings the door around its hinge.
 
-  const doorRightGroup = new THREE.Group();
-  doorRightGroup.userData.partId = 'door-right';
-  scene.add(doorRightGroup);
-  const rightBuild = buildDoor(scene, doorRightGroup, RIGHT_DOOR_X, true);
+  // Left door pivot — hinge on left wall inner face
+  // Opens outward: rotation.y goes from 0 → +DOOR_OPEN_ANGLE
+  const leftPivot = new THREE.Group();
+  leftPivot.position.set(LEFT_HINGE_X, 0, 0);
+  leftPivot.userData.partId = 'door-left-pivot';
+  scene.add(leftPivot);
+  const leftBuild = buildDoor(leftPivot, LEFT_HINGE_X, LEFT_DOOR_X, false);
 
-  // Glass panels - all 4 share one partId so the highlight reads as a single
-  // "kaca clear" element regardless of which leaf the user hovers.
-  const glassGroup = new THREE.Group();
-  glassGroup.userData.partId = 'glass-panels';
-  scene.add(glassGroup);
+  // Right door pivot — hinge on right wall inner face
+  // Opens outward: rotation.y goes from 0 → -DOOR_OPEN_ANGLE
+  const rightPivot = new THREE.Group();
+  rightPivot.position.set(RIGHT_HINGE_X, 0, 0);
+  rightPivot.userData.partId = 'door-right-pivot';
+  scene.add(rightPivot);
+  const rightBuild = buildDoor(rightPivot, RIGHT_HINGE_X, RIGHT_DOOR_X, true);
+
+  // Tag meshes with partId directly — they stay inside pivot groups
+  // so they rotate correctly with the door animation.
+  // The highlight controller traverses userData.partId on any object.
   [...leftBuild.glassMeshes, ...rightBuild.glassMeshes].forEach(g => {
-    // Reparent under glass group while preserving world position
-    g.parent?.remove(g);
-    glassGroup.add(g);
+    g.userData.partId = 'glass-panels';
   });
-
-  // Handles - both bar handles + brackets share one partId
-  const handlesGroup = new THREE.Group();
-  handlesGroup.userData.partId = 'handles';
-  scene.add(handlesGroup);
   [...leftBuild.handleMeshes, ...rightBuild.handleMeshes].forEach(h => {
-    h.parent?.remove(h);
-    handlesGroup.add(h);
+    h.userData.partId = 'handles';
   });
-
-  // Cam-lock (right door only)
-  if (rightBuild.lockMeshes.length > 0) {
-    const lockGroup = new THREE.Group();
-    lockGroup.userData.partId = 'cam-lock';
-    scene.add(lockGroup);
-    rightBuild.lockMeshes.forEach(l => {
-      l.parent?.remove(l);
-      lockGroup.add(l);
-    });
-  }
-
-  // Hinges - all 6 hinges share one partId
-  const hingesGroup = new THREE.Group();
-  hingesGroup.userData.partId = 'hinges';
-  scene.add(hingesGroup);
+  rightBuild.lockMeshes.forEach(l => {
+    l.userData.partId = 'cam-lock';
+  });
   [...leftBuild.hingeMeshes, ...rightBuild.hingeMeshes].forEach(h => {
-    h.parent?.remove(h);
-    hingesGroup.add(h);
+    h.userData.partId = 'hinges';
   });
 
   // Center meeting strip (where both doors meet)
@@ -434,6 +446,8 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     OW / 2 + 50,
     [-5, OH + 5],
   );
+
+  return { leftPivot, rightPivot };
 }
 
 // -─ React component ---------------------
@@ -442,7 +456,42 @@ export function PacsCabinetAssembled3D({ product }: Props) {
   const [activePreset, setActivePreset] = useState<string>(
     product.cameraPresets[0]?.name ?? '',
   );
+  const [doorsOpen, setDoorsOpen] = useState(false);
   const { attachHighlight } = useHighlightController();
+
+  // Refs to pivot groups — populated in onInit, used in onTick
+  const leftPivotRef  = useRef<THREE.Group | null>(null);
+  const rightPivotRef = useRef<THREE.Group | null>(null);
+
+  // onTick: lerp door rotation toward target angle, return true while moving
+  const onTick = useCallback(() => {
+    const lp = leftPivotRef.current;
+    const rp = rightPivotRef.current;
+    if (!lp || !rp) return false;
+
+    const targetL =  doorsOpen ?  DOOR_OPEN_ANGLE : 0;   // left opens +Y (outward left)
+    const targetR =  doorsOpen ? -DOOR_OPEN_ANGLE : 0;   // right opens -Y (outward right)
+    const SPEED = 0.08;
+
+    const prevL = lp.rotation.y;
+    const prevR = rp.rotation.y;
+
+    lp.rotation.y += (targetL - lp.rotation.y) * SPEED;
+    rp.rotation.y += (targetR - rp.rotation.y) * SPEED;
+
+    // Still animating if delta > threshold
+    const moving =
+      Math.abs(lp.rotation.y - targetL) > 0.001 ||
+      Math.abs(rp.rotation.y - targetR) > 0.001;
+
+    // Snap to target when close enough
+    if (!moving) {
+      lp.rotation.y = targetL;
+      rp.rotation.y = targetR;
+    }
+
+    return moving || lp.rotation.y !== prevL || rp.rotation.y !== prevR;
+  }, [doorsOpen]);
 
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: {
@@ -451,11 +500,14 @@ export function PacsCabinetAssembled3D({ product }: Props) {
       maxDistance: 1000,
     },
     onInit: (refs) => {
-      buildScene(refs.scene, refs.renderer);
+      const extras = buildScene(refs.scene, refs.renderer);
+      leftPivotRef.current  = extras.leftPivot;
+      rightPivotRef.current = extras.rightPivot;
       const p = product.cameraPresets[0];
       applyCameraPreset(refs, p.position, p.target);
       attachHighlight(refs);
     },
+    onTick,
     deps: [product],
   });
 
@@ -482,6 +534,17 @@ export function PacsCabinetAssembled3D({ product }: Props) {
         onDownload={dl}
         onDownloadAll={dlAll}
       />
+      {/* Door toggle button */}
+      <div className="flex justify-center py-1 bg-white/80 border-b border-gray-100">
+        <button
+          onClick={() => setDoorsOpen(v => !v)}
+          className="px-4 py-1.5 text-xs font-medium rounded-full border transition-colors
+            bg-white border-gray-300 text-gray-700 hover:bg-blue-50 hover:border-blue-400
+            hover:text-blue-700 active:scale-95"
+        >
+          {doorsOpen ? '🚪 Tutup Pintu' : '🚪 Buka Pintu'}
+        </button>
+      </div>
       <div className="flex-1 min-h-0">
         <div ref={mountRef} className="w-full h-full" />
       </div>
