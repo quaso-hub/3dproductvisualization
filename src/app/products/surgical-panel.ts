@@ -11,7 +11,7 @@ const SURGICAL_PANEL: Product = {
   category: 'Lainnya',
   badge: 'Smart System',
   badgeColor: 'bg-indigo-100 text-indigo-700',
-  viewerType: 'surgical-panel',
+  viewerType: 'surgical-control-panel', // Use the new viewer
   views: ['assembled', 'exploded'],
 
   layers: [

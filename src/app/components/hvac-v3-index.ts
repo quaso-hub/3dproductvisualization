@@ -1,19 +1,19 @@
 /**
  * hvac-v3-index.ts
  * ─────────────────────────────────────────────────────────────
- * Barrel re-export for all V3 HVAC geometry modules.
+ * Barrel re-export for all V4 HVAC geometry modules.
  * ─────────────────────────────────────────────────────────────
  */
 
-export { buildBuilding } from './hvac-v3-building';
-export { buildAHU, ahuCutPlane } from './hvac-v3-ahu';
-export { buildSupplyDuctwork, buildReturnDuctwork } from './hvac-v3-ductwork';
+export { buildBuilding, buildMechRoom } from './hvac-v3-building';
+export { buildAHU } from './hvac-v3-ahu';
+export { buildSupplyDuct, buildReturnDuct } from './hvac-v3-ductwork';
 export {
   buildLAFUnits,
-  buildReturnGrilles,
   buildOutdoorUnit,
-  buildRefrigerantPiping,
-  buildOREquipment,
+  buildRefrigerantPipes,
   buildControlPanel,
-  buildAirflowParticles,
+  buildOREquipment,
+  createParticleSystem,
+  updateParticles,
 } from './hvac-v3-equipment';

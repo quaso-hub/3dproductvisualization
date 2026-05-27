@@ -53,7 +53,7 @@ const LAYERS: Layer[] = [
     realThk: '50 / 75 / 100 mm',
     thk: 62,
     fc: '#E8D845', tc: '#F5EC65', sc: '#C8B818',
-    desc: 'Inti Polyisocyanurate (PIR) — insulasi termal superior, ketahanan api tinggi, anti korosi, anti jamur, tahan karat. Tersedia 50 mm, 75 mm, atau 100 mm.',
+    desc: 'Inti Polyisocyanurate (PIR) - insulasi termal superior, ketahanan api tinggi, anti korosi, anti jamur, tahan karat. Tersedia 50 mm, 75 mm, atau 100 mm.',
     optional: false,
   },
   {

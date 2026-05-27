@@ -1,9 +1,8 @@
 /**
  * hvac-bim-modes.ts
  * ─────────────────────────────────────────────────────────────
- * Mode configuration + transition logic for HVAC BIM viewer.
- * 6 view modes: Full System, Supply Air, Return Air,
- * Refrigerant, Floor Plan, Exploded.
+ * V4 Simplified mode system: 4 airflow modes + 4 camera presets.
+ * No explosion offsets, no floor plan, no AHU cutaway.
  * ─────────────────────────────────────────────────────────────
  */
 
@@ -12,110 +11,69 @@ import { SUPPLY_CYAN, RETURN_SALMON, REFRIG_AMBER, createHighlightMaterial, getD
 
 /* ── Types ────────────────────────────────────────────────── */
 
-export type HvacMode =
-  | 'assembled'
-  | 'supply_air'
-  | 'return_air'
-  | 'refrigerant'
-  | 'floor_plan'
-  | 'exploded'
-  | 'ahu_cutaway';
+export type HvacMode = 'all' | 'supply' | 'return' | 'refrig';
 
 export interface ModeConfig {
   id: HvacMode;
   label: string;
   description: string;
-  camera: { position: [number, number, number]; target: [number, number, number] };
   highlightGroups?: string[];
   highlightColor?: number;
-  dimOpacity?: number;
-  hiddenGroups?: string[];
-  showParticles?: boolean;
+  showParticles?: ('supply' | 'return' | 'refrig')[];
+}
+
+export interface CameraPresetConfig {
+  id: string;
+  label: string;
+  position: [number, number, number];
+  target: [number, number, number];
 }
 
 /* ── Mode Definitions ─────────────────────────────────────── */
 
 export const MODE_CONFIGS: Record<HvacMode, ModeConfig> = {
-  assembled: {
-    id: 'assembled',
-    label: 'Full System',
-    description: 'Sistem HVAC OR lengkap — semua komponen terinstall',
-    camera: { position: [12, 10, 12], target: [1, 2.5, 0] },
-    showParticles: true,
+  all: {
+    id: 'all',
+    label: 'ALL',
+    description: 'Full HVAC System — semua komponen',
+    showParticles: ['supply', 'return', 'refrig'],
   },
-
-  supply_air: {
-    id: 'supply_air',
-    label: 'Supply Air',
-    description: 'Jalur supply: AHU → Ducting → LAF → Laminar Flow ke OR',
-    camera: { position: [10, 8, 10], target: [1, 3, 0] },
-    highlightGroups: ['grp_rooftop', 'grp_supply_duct', 'grp_or_ceiling'],
+  supply: {
+    id: 'supply',
+    label: 'Supply',
+    description: 'Supply Air: AHU → Ducting → LAF → Laminar Flow',
+    highlightGroups: ['grp_ahu', 'grp_supply_duct', 'grp_laf_units'],
     highlightColor: SUPPLY_CYAN,
-    dimOpacity: 0.08,
-    showParticles: true,
+    showParticles: ['supply'],
   },
-
-  return_air: {
-    id: 'return_air',
-    label: 'Return Air',
-    description: 'Jalur return: Low-wall grilles → Return duct → AHU',
-    camera: { position: [10, 6, 12], target: [0, 1.5, 0] },
-    highlightGroups: ['grp_return_grilles', 'grp_return_duct', 'grp_rooftop'],
+  return: {
+    id: 'return',
+    label: 'Return',
+    description: 'Return Air: Low-wall grilles → Return duct → AHU',
+    highlightGroups: ['grp_return_duct', 'grp_ahu'],
     highlightColor: RETURN_SALMON,
-    dimOpacity: 0.08,
+    showParticles: ['return'],
   },
-
-  refrigerant: {
-    id: 'refrigerant',
-    label: 'Refrigerant',
-    description: 'Sirkuit refrigerant: Outdoor Unit ↔ AHU Evaporator',
-    camera: { position: [12, 10, 8], target: [4, 4, 0] },
-    highlightGroups: ['grp_piping', 'grp_rooftop'],
+  refrig: {
+    id: 'refrig',
+    label: 'Refrig',
+    description: 'Refrigerant: Outdoor Unit ↔ AHU Evaporator',
+    highlightGroups: ['grp_refrigerant_pipes', 'grp_outdoor_unit', 'grp_ahu'],
     highlightColor: REFRIG_AMBER,
-    dimOpacity: 0.08,
-  },
-
-  floor_plan: {
-    id: 'floor_plan',
-    label: 'Floor Plan',
-    description: 'Denah OR tampak atas — posisi equipment & ducting',
-    camera: { position: [0, 20, 0.1], target: [0, 0, 0] },
-    hiddenGroups: ['grp_rooftop', 'grp_piping', 'grp_supply_duct', 'grp_return_duct', 'grp_particles'],
-  },
-
-  exploded: {
-    id: 'exploded',
-    label: 'Exploded',
-    description: 'Layer terpisah — semua subsistem dipisah vertikal',
-    camera: { position: [14, 14, 14], target: [0, 3, 0] },
-  },
-
-  ahu_cutaway: {
-    id: 'ahu_cutaway',
-    label: 'AHU Cutaway',
-    description: 'Detail internal AHU — filter, coil, fan, UV-C lamp terlihat',
-    camera: { position: [10, 1.5, 3], target: [7.5, 0.6, 0] },
-    highlightGroups: ['grp_ahu'],
-    highlightColor: SUPPLY_CYAN,
-    dimOpacity: 0.12,
+    showParticles: ['refrig'],
   },
 };
 
-/* ── Explosion Offsets ────────────────────────────────────── */
+/* ── Camera Presets (V4 Spec) ─────────────────────────────── */
 
-const EXPLODE_OFFSETS: Record<string, [number, number, number]> = {
-  grp_or_interior:   [0, -4.0, 0],   // turun jauh
-  grp_building:      [0,  0.0, 0],   // reference
-  grp_return_grilles:[0, -2.5, 0],   // turun sedikit
-  grp_or_ceiling:    [0, +2.0, 0],   // naik sedikit
-  grp_return_duct:   [0, +3.5, 0],   // naik medium
-  grp_supply_duct:   [0, +5.0, 0],   // naik
-  grp_piping:        [0, +6.5, 0],   // naik lebih
-  grp_rooftop:       [0, +8.0, 0],   // naik paling jauh
-  grp_particles:     [0, +99, 0],    // hide offscreen
-};
+export const CAMERA_PRESETS: CameraPresetConfig[] = [
+  { id: 'overview', label: 'Overview', position: [14, 9, 14], target: [2, 2, 0] },
+  { id: 'ahu',      label: 'AHU',      position: [12, 2.5, 4], target: [7.2, 0.6, 0] },
+  { id: 'or',       label: 'OR Room',   position: [4, 3.5, 10], target: [0, 1.5, 0] },
+  { id: 'top',      label: 'Top',       position: [2, 15, 1], target: [2, 0, 0] },
+];
 
-/* ── Material Registry for Mode Transitions ───────────────── */
+/* ── Material Registry ────────────────────────────────────── */
 
 export interface MeshRegistryEntry {
   mesh: THREE.Mesh;
@@ -123,10 +81,6 @@ export interface MeshRegistryEntry {
   originalMaterial: THREE.Material;
 }
 
-/**
- * Snapshot all mesh materials at init time.
- * Returns a flat array for fast iteration during mode transitions.
- */
 export function buildMeshRegistry(
   groups: Map<string, THREE.Group>,
 ): MeshRegistryEntry[] {
@@ -148,30 +102,21 @@ export function buildMeshRegistry(
 
 /* ── Mode Transition ──────────────────────────────────────── */
 
-/**
- * Apply a mode to the scene.
- * Swaps materials, sets visibility, applies explosion offsets.
- */
 export function applyMode(
   mode: HvacMode,
   groups: Map<string, THREE.Group>,
   registry: MeshRegistryEntry[],
-  originalPositions: Map<string, THREE.Vector3>,
 ): void {
   const config = MODE_CONFIGS[mode];
   const isSubsystem = !!(config.highlightGroups && config.highlightColor);
 
-  // ── Material swap ──
   if (isSubsystem) {
     const highlightSet = new Set(config.highlightGroups!);
     const dimMat = getDimmedMaterial();
-
-    // Cache highlight material clones per group (reuse within group)
     const hlCache = new Map<string, THREE.MeshStandardMaterial>();
 
     for (const entry of registry) {
       if (highlightSet.has(entry.groupName)) {
-        // Highlighted: clone original + emissive tint
         let hlMat = hlCache.get(entry.groupName);
         if (!hlMat) {
           hlMat = createHighlightMaterial(
@@ -182,7 +127,6 @@ export function applyMode(
         }
         entry.mesh.material = hlMat;
       } else {
-        // Dimmed
         entry.mesh.material = dimMat;
       }
     }
@@ -193,46 +137,13 @@ export function applyMode(
     }
   }
 
-  // ── Visibility (for floor_plan hidden groups) ──
-  for (const [name, group] of groups) {
-    if (config.hiddenGroups?.includes(name)) {
-      group.visible = false;
-    } else {
-      group.visible = true;
-    }
-  }
-
-  // ── Explosion offsets ──
-  if (mode === 'exploded') {
-    for (const [name, group] of groups) {
-      const offset = EXPLODE_OFFSETS[name];
-      const orig = originalPositions.get(name);
-      if (offset && orig) {
-        group.position.set(
-          orig.x + offset[0],
-          orig.y + offset[1],
-          orig.z + offset[2],
-        );
-      }
-    }
-  } else {
-    // Reset to original positions
-    for (const [name, group] of groups) {
-      const orig = originalPositions.get(name);
-      if (orig) {
-        group.position.copy(orig);
-      }
-    }
-  }
-
-  // ── Particles visibility ──
-  const particleGroup = groups.get('grp_particles');
-  if (particleGroup) {
-    particleGroup.visible = !!config.showParticles;
+  // All groups visible in V4
+  for (const [, group] of groups) {
+    group.visible = true;
   }
 }
 
-/* ── Camera Lerp State ────────────────────────────────────── */
+/* ── Camera Lerp ──────────────────────────────────────────── */
 
 export interface CameraLerpState {
   startPos: THREE.Vector3;
@@ -247,9 +158,6 @@ export function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
-/**
- * Tick camera lerp — call from onTick. Returns true if still active.
- */
 export function tickCameraLerp(
   lerp: CameraLerpState,
   camera: THREE.Camera,
@@ -262,21 +170,17 @@ export function tickCameraLerp(
   return lerp.frame < lerp.totalFrames;
 }
 
-/**
- * Create a camera lerp state from current to mode target.
- */
-export function createCameraLerp(
-  mode: HvacMode,
+export function createCameraLerpToPreset(
+  preset: CameraPresetConfig,
   camera: THREE.Camera,
   controls: { target: THREE.Vector3 },
-  frames: number = 40,
+  frames = 40,
 ): CameraLerpState {
-  const cfg = MODE_CONFIGS[mode];
   return {
     startPos: camera.position.clone(),
-    endPos: new THREE.Vector3(...cfg.camera.position),
+    endPos: new THREE.Vector3(...preset.position),
     startTarget: controls.target.clone(),
-    endTarget: new THREE.Vector3(...cfg.camera.target),
+    endTarget: new THREE.Vector3(...preset.target),
     frame: 0,
     totalFrames: frames,
   };

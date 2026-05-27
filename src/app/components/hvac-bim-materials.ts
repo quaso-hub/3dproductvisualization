@@ -1,8 +1,8 @@
 /**
  * hvac-bim-materials.ts
  * ─────────────────────────────────────────────────────────────
- * Material library for HVAC System BIM-MEP 3D viewer.
- * 15 realistic PBR materials + highlight/dim helpers.
+ * V4 Material palette for HVAC System viewer.
+ * Clean architectural style — light background, bold duct colors.
  * ─────────────────────────────────────────────────────────────
  */
 
@@ -10,226 +10,66 @@ import * as THREE from 'three';
 
 /* ── Subsystem Highlight Colors ───────────────────────────── */
 export const SUPPLY_CYAN   = 0x00BCD4;
-export const RETURN_SALMON = 0xFF7043;
-export const REFRIG_AMBER  = 0xFF8F00;
+export const RETURN_SALMON = 0xEF9A9A;
+export const REFRIG_AMBER  = 0xFFB300;
 
-/* ── Realistic Material Factories ─────────────────────────── */
+/* ── V4 Global Material Palette ──────────────────────────── */
 
-/** Ghost wall — semi-transparent HPL white */
-export const matWall = () => new THREE.MeshStandardMaterial({
-  color: 0xECEFF1, roughness: 0.75, metalness: 0.0,
-  transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false,
-});
+export const MAT = {
+  // Building
+  wallGlass : new THREE.MeshStandardMaterial({ color: 0xB8D4E8, transparent: true, opacity: 0.12, roughness: 0.05, side: THREE.DoubleSide, depthWrite: false }),
+  wallEdge  : new THREE.LineBasicMaterial({ color: 0x7799BB }),
+  floor     : new THREE.MeshStandardMaterial({ color: 0xD8DDE2, roughness: 0.85, metalness: 0.0 }),
+  ceiling   : new THREE.MeshStandardMaterial({ color: 0xE8EAEC, roughness: 0.8, transparent: true, opacity: 0.55, side: THREE.DoubleSide }),
+  roofSlab  : new THREE.MeshStandardMaterial({ color: 0xBDC3C7, roughness: 0.7, transparent: true, opacity: 0.35, depthWrite: false }),
 
-/** Medical vinyl floor */
-export const matFloor = () => new THREE.MeshStandardMaterial({
-  color: 0xF5F5F0, roughness: 0.40, metalness: 0.0,
-});
+  // AHU
+  ahuCasing  : new THREE.MeshStandardMaterial({ color: 0x546E7A, roughness: 0.38, metalness: 0.55 }),
+  ahuAccess  : new THREE.MeshStandardMaterial({ color: 0x607D8B, roughness: 0.42, metalness: 0.45 }),
+  filterG4   : new THREE.MeshStandardMaterial({ color: 0xA5D6A7, roughness: 0.7, metalness: 0.0 }),
+  filterF9   : new THREE.MeshStandardMaterial({ color: 0x90CAF9, roughness: 0.7, metalness: 0.0 }),
+  evapCoil   : new THREE.MeshStandardMaterial({ color: 0x26C6DA, roughness: 0.25, metalness: 0.75 }),
+  heater     : new THREE.MeshStandardMaterial({ color: 0xFF8A65, roughness: 0.35, metalness: 0.6, emissive: 0x6D1C00, emissiveIntensity: 0.3 }),
+  fanHousing : new THREE.MeshStandardMaterial({ color: 0x455A64, roughness: 0.4, metalness: 0.6 }),
+  fanBlade   : new THREE.MeshStandardMaterial({ color: 0x78909C, roughness: 0.3, metalness: 0.7 }),
+  uvLamp     : new THREE.MeshStandardMaterial({ color: 0xCE93D8, emissive: 0x7B1FA2, emissiveIntensity: 1.8, transparent: true, opacity: 0.9 }),
+  mechRoom   : new THREE.MeshStandardMaterial({ color: 0xCFD8DC, roughness: 0.8, transparent: true, opacity: 0.15, side: THREE.DoubleSide, depthWrite: false }),
+  magnehelic : new THREE.MeshStandardMaterial({ color: 0x263238, roughness: 0.4, metalness: 0.3 }),
 
-/** Ceiling HPL white */
-export const matCeiling = () => new THREE.MeshStandardMaterial({
-  color: 0xF1F3F4, roughness: 0.72, metalness: 0.0,
-  transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false,
-});
+  // Ductwork
+  supplyDuct : new THREE.MeshStandardMaterial({ color: 0x00BCD4, roughness: 0.55, metalness: 0.15 }),
+  returnDuct : new THREE.MeshStandardMaterial({ color: 0xE57373, roughness: 0.55, metalness: 0.15 }),
 
-/** Rooftop concrete slab */
-export const matRooftopSlab = () => new THREE.MeshStandardMaterial({
-  color: 0xC8C8C0, roughness: 0.85, metalness: 0.0,
-  transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false,
-});
+  // Flanges
+  flange     : new THREE.MeshStandardMaterial({ color: 0x8898A8, metalness: 0.65, roughness: 0.3 }),
+  tape       : new THREE.MeshStandardMaterial({ color: 0xCCCCCC, metalness: 0.8, roughness: 0.1 }),
 
-/** AHU Double Skin body — RAL 7035 */
-export const matAHUBody = () => new THREE.MeshStandardMaterial({
-  color: 0x8D9BAB, roughness: 0.50, metalness: 0.30,
-});
+  // LAF
+  lafPlenum  : new THREE.MeshStandardMaterial({ color: 0x8898A8, roughness: 0.4, metalness: 0.5 }),
+  lafFilter  : new THREE.MeshStandardMaterial({ color: 0xECEFF1, roughness: 0.8, metalness: 0.0 }),
+  lafDiffuser: new THREE.MeshStandardMaterial({ color: 0xF5F5F5, roughness: 0.7, metalness: 0.05 }),
 
-/** Outdoor unit body */
-export const matOutdoorUnit = () => new THREE.MeshStandardMaterial({
-  color: 0xD4D8DC, roughness: 0.55, metalness: 0.15,
-});
+  // Return grille
+  grilleFrame: new THREE.MeshStandardMaterial({ color: 0x78909C, metalness: 0.55, roughness: 0.35 }),
+  grillSlat  : new THREE.MeshStandardMaterial({ color: 0x8898A8, metalness: 0.5, roughness: 0.4 }),
 
-/** Supply duct PIU — light cyan tint (MEP standard) */
-export const matDuctSupply = () => new THREE.MeshStandardMaterial({
-  color: 0xB0D8E8, roughness: 0.65, metalness: 0.05,
-});
+  // Outdoor unit
+  outerCasing: new THREE.MeshStandardMaterial({ color: 0x607D8B, roughness: 0.4, metalness: 0.4 }),
+  outerFin   : new THREE.MeshStandardMaterial({ color: 0xB0BEC5, metalness: 0.75, roughness: 0.2, side: THREE.DoubleSide }),
+  copper     : new THREE.MeshStandardMaterial({ color: 0xB87333, metalness: 0.88, roughness: 0.2 }),
+  insulation : new THREE.MeshStandardMaterial({ color: 0x1A1A1A, roughness: 0.92, metalness: 0.0 }),
 
-/** Return duct — light salmon tint (MEP standard) */
-export const matDuctReturn = () => new THREE.MeshStandardMaterial({
-  color: 0xE8C0B0, roughness: 0.65, metalness: 0.05,
-});
+  // Control panel
+  panel      : new THREE.MeshStandardMaterial({ color: 0x37474F, roughness: 0.45, metalness: 0.25 }),
+  panelDoor  : new THREE.MeshStandardMaterial({ color: 0x455A64, roughness: 0.4, metalness: 0.2 }),
+  hmi        : new THREE.MeshStandardMaterial({ color: 0x002244, emissive: 0x003366, emissiveIntensity: 0.8 }),
 
-/** Insulation black foam (Harmaflek) */
-export const matInsulation = () => new THREE.MeshStandardMaterial({
-  color: 0x2D3436, roughness: 0.90, metalness: 0.0,
-});
-
-/** Copper pipe ASTM B280 */
-export const matCopper = () => new THREE.MeshStandardMaterial({
-  color: 0xB87333, roughness: 0.25, metalness: 0.85,
-});
-
-/** Stainless steel SUS 304 */
-export const matStainless = () => new THREE.MeshStandardMaterial({
-  color: 0xB0BAC4, roughness: 0.18, metalness: 0.94,
-});
-
-/** Control panel body — blue-grey */
-export const matControlPanel = () => new THREE.MeshStandardMaterial({
-  color: 0x607D8B, roughness: 0.40, metalness: 0.10,
-});
-
-/** Galvanised steel */
-export const matGalvanised = () => new THREE.MeshStandardMaterial({
-  color: 0xB4BEC8, roughness: 0.35, metalness: 0.80,
-});
-
-/** LAF perforated face */
-export const matLAFFace = () => new THREE.MeshStandardMaterial({
-  color: 0xF0F2F5, roughness: 0.70, metalness: 0.0,
-});
-
-/** Filter media (light grey fibrous) */
-export const matFilterMedia = () => new THREE.MeshStandardMaterial({
-  color: 0xCED4DA, roughness: 0.80, metalness: 0.0,
-  transparent: true, opacity: 0.75,
-});
-
-/** Coil fin aluminium */
-export const matCoilFin = () => new THREE.MeshStandardMaterial({
-  color: 0xC0D0E0, roughness: 0.20, metalness: 0.80,
-});
-
-/** Fan blade dark grey */
-export const matFanBlade = () => new THREE.MeshStandardMaterial({
-  color: 0x505860, roughness: 0.45, metalness: 0.30,
-});
-
-/** AHU grille slat */
-export const matSlat = () => new THREE.MeshStandardMaterial({
-  color: 0x7B8A99, roughness: 0.40, metalness: 0.50,
-});
-
-/** HEPA filter media */
-export const matHEPA = () => new THREE.MeshStandardMaterial({
-  color: 0xF2ECE0, roughness: 0.92, metalness: 0.0,
-});
-
-/** LED panel (emissive) */
-export const matLED = () => new THREE.MeshStandardMaterial({
-  color: 0xF8F8FF, roughness: 0.50, metalness: 0.10,
-  emissive: 0xE8EDFF, emissiveIntensity: 2.0,
-});
-
-/** OR equipment (table, pendant) — light medical grey */
-export const matOREquipment = () => new THREE.MeshStandardMaterial({
-  color: 0xD0D4D8, roughness: 0.45, metalness: 0.20,
-});
-
-/** Rubber gasket — EPDM/neoprene black */
-export const matRubberGasket = () => new THREE.MeshStandardMaterial({
-  color: 0x1A1A1A, roughness: 0.95, metalness: 0.0,
-});
-
-/** Aluminium foil tape — highly reflective silver */
-export const matAluminiumFoilTape = () => new THREE.MeshStandardMaterial({
-  color: 0xE8E8E8, roughness: 0.05, metalness: 0.95,
-});
-
-/** Brass valve/fitting body */
-export const matBrassValve = () => new THREE.MeshStandardMaterial({
-  color: 0xC5A54E, roughness: 0.30, metalness: 0.85,
-});
-
-/** Wire mesh (for fan guards, screens) */
-export const matWireMesh = () => new THREE.MeshStandardMaterial({
-  color: 0xA0A8B0, roughness: 0.35, metalness: 0.70,
-  wireframe: true,
-});
-
-/* ── V3 Additional Materials ─────────────────────────────── */
-
-/** G4 Pre-filter — coarse tan synthetic media */
-export const matFilterG4 = () => new THREE.MeshStandardMaterial({
-  color: 0xD4C9A8, roughness: 0.88, metalness: 0.0,
-  transparent: true, opacity: 0.80,
-});
-
-/** F8/F9 Bag filter — pink-white fine media */
-export const matFilterF89 = () => new THREE.MeshStandardMaterial({
-  color: 0xE8D4D8, roughness: 0.85, metalness: 0.0,
-  transparent: true, opacity: 0.82,
-});
-
-/** Heater element — emissive orange-red glow */
-export const matHeaterElement = () => new THREE.MeshStandardMaterial({
-  color: 0x8B4513, roughness: 0.60, metalness: 0.70,
-  emissive: 0xFF4500, emissiveIntensity: 1.2,
-});
-
-/** UV-C germicidal lamp — emissive purple glow */
-export const matUVLamp = () => new THREE.MeshStandardMaterial({
-  color: 0x9966CC, roughness: 0.20, metalness: 0.10,
-  emissive: 0x7B2FBE, emissiveIntensity: 2.0,
-  transparent: true, opacity: 0.90,
-});
-
-/** Drain pan — galvanised steel with slight patina */
-export const matDrainPan = () => new THREE.MeshStandardMaterial({
-  color: 0x8A9BA8, roughness: 0.55, metalness: 0.75,
-});
-
-/** Section divider baffle — painted steel */
-export const matBaffle = () => new THREE.MeshStandardMaterial({
-  color: 0x6B7B8D, roughness: 0.60, metalness: 0.40,
-});
-
-/** PIU duct — warm tan (SMACNA standard colour) */
-export const matPIUDuct = () => new THREE.MeshStandardMaterial({
-  color: 0xB8A882, roughness: 0.55, metalness: 0.10,
-});
-
-/** SMACNA flange — bright galvanised ring */
-export const matSMACNAFlange = () => new THREE.MeshStandardMaterial({
-  color: 0xC8D0D8, roughness: 0.25, metalness: 0.85,
-});
-
-/** Aluminium tape joint band — very reflective */
-export const matAluminiumTape = () => new THREE.MeshStandardMaterial({
-  color: 0xE0E4E8, roughness: 0.08, metalness: 0.92,
-});
-
-/** Glass wall — transparent with blue tint for building shell */
-export const matGlassWall = () => new THREE.MeshStandardMaterial({
-  color: 0xD4E8F0, roughness: 0.05, metalness: 0.0,
-  transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false,
-});
-
-/** Solid wall — concrete/rendered finish for building shell */
-export const matSolidWall = () => new THREE.MeshStandardMaterial({
-  color: 0xD8D8D0, roughness: 0.80, metalness: 0.0,
-  transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false,
-});
-
-/** Fan scroll housing — cast iron / painted dark grey */
-export const matScrollHousing = () => new THREE.MeshStandardMaterial({
-  color: 0x404850, roughness: 0.50, metalness: 0.45,
-});
-
-/** Operating pad — medical green vinyl */
-export const matOperatingPad = () => new THREE.MeshStandardMaterial({
-  color: 0x3A7D6E, roughness: 0.70, metalness: 0.0,
-});
-
-/** Lamp LED strip — bright cool white emissive */
-export const matLampLED = () => new THREE.MeshStandardMaterial({
-  color: 0xFFFFFF, roughness: 0.30, metalness: 0.10,
-  emissive: 0xF0F4FF, emissiveIntensity: 3.0,
-});
-
-/** Gas outlet — medical colour-coded brass */
-export const matGasOutlet = () => new THREE.MeshStandardMaterial({
-  color: 0x3B8686, roughness: 0.35, metalness: 0.60,
-});
+  // OR equipment
+  tableMetal : new THREE.MeshStandardMaterial({ color: 0x90A4AE, metalness: 0.6, roughness: 0.3 }),
+  tablePad   : new THREE.MeshStandardMaterial({ color: 0x37474F, roughness: 0.8 }),
+  lampWhite  : new THREE.MeshStandardMaterial({ color: 0xECEFF1, roughness: 0.3, metalness: 0.2, emissive: 0xFFF8E1, emissiveIntensity: 0.8 }),
+  pendantArm : new THREE.MeshStandardMaterial({ color: 0xB0BEC5, metalness: 0.65, roughness: 0.25 }),
+} as const;
 
 /* ── Highlight / Dim Helpers ──────────────────────────────── */
 
@@ -240,7 +80,7 @@ export function createHighlightMaterial(
 ): THREE.MeshStandardMaterial {
   const mat = base.clone();
   mat.emissive = new THREE.Color(highlightColor);
-  mat.emissiveIntensity = 0.35;
+  mat.emissiveIntensity = 0.22;
   mat.transparent = false;
   mat.opacity = 1.0;
   mat.depthWrite = true;
