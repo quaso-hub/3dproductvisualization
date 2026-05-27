@@ -21,7 +21,7 @@
  * ------------------------------─
  */
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Product, CameraPreset } from '../data/products';
@@ -213,7 +213,13 @@ function addCyl(
 
 // -─ Build scene -----------------------─
 
-function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
+const PANEL_LIFT_GAP = 12;  // 120mm lift to reveal frame interior
+
+interface CeilingSceneExtras {
+  panelMeshes: THREE.Mesh[];  // all 4 panels (3 solid + 1 LAF)
+}
+
+function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): CeilingSceneExtras {
   // PBR Environment
   renderer.toneMappingExposure = 0.85;
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -287,10 +293,13 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   panelGroup.userData.partId = 'panel';
   scene.add(panelGroup);
 
+  const panelMeshes: THREE.Mesh[] = [];
+
   for (let i = 0; i < 3; i++) {
     const [px, pz] = PANEL_POSITIONS[i];
-    addBox(panelGroup, PANEL_ACTUAL, PANEL_T, PANEL_ACTUAL,
+    const m = addBox(panelGroup, PANEL_ACTUAL, PANEL_T, PANEL_ACTUAL,
       px, Y_PANEL_CY, pz, panelMat);
+    panelMeshes.push(m);
   }
 
   // -─ 4. LAF diffuser panel (perforated, bottom-right) ----
@@ -301,8 +310,9 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   const lafPos = PANEL_POSITIONS[3];
   const alphaMap = createPerforationAlphaMap();
   const perfMat = matPerforatedFace(alphaMap, PANEL_ACTUAL, PANEL_ACTUAL);
-  addBox(lafGroup, PANEL_ACTUAL, PANEL_T, PANEL_ACTUAL,
+  const lafMesh = addBox(lafGroup, PANEL_ACTUAL, PANEL_T, PANEL_ACTUAL,
     lafPos[0], Y_PANEL_CY, lafPos[1], perfMat);
+  panelMeshes.push(lafMesh);
 
   // -─ 5. HEPA H14 filter (above LAF panel only) -------─
   const hepaGroup = new THREE.Group();
@@ -393,6 +403,8 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     HALF_MOD + 55,
     [-PENDANT_COL_H - 5, rodY + ROD_H / 2 + 15],
   );
+
+  return { panelMeshes };
 }
 
 // -─ React component ---------------------─
@@ -402,7 +414,34 @@ export function CeilingPanelAssembled3D({ product }: Props) {
   const [activePreset, setActivePreset] = useState<string>(
     firstPreset?.name ?? '',
   );
+  const [panelsLifted, setPanelsLifted] = useState(false);
   const { attachHighlight } = useHighlightController();
+
+  // Refs to panel meshes — populated in onInit
+  const panelMeshesRef = useRef<THREE.Mesh[]>([]);
+
+  // onTick: lerp panel Y toward target, return true while moving
+  const onTick = useCallback(() => {
+    const meshes = panelMeshesRef.current;
+    if (meshes.length === 0) return false;
+
+    const targetY = panelsLifted ? Y_PANEL_CY + PANEL_LIFT_GAP : Y_PANEL_CY;
+    const SPEED = 0.07;
+    let moving = false;
+
+    for (const m of meshes) {
+      const prev = m.position.y;
+      m.position.y += (targetY - m.position.y) * SPEED;
+      if (Math.abs(m.position.y - targetY) < 0.01) {
+        m.position.y = targetY;
+      } else {
+        moving = true;
+      }
+      if (m.position.y !== prev) moving = true;
+    }
+
+    return moving;
+  }, [panelsLifted]);
 
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: {
@@ -411,10 +450,12 @@ export function CeilingPanelAssembled3D({ product }: Props) {
       maxDistance: 700,
     },
     onInit: (refs) => {
-      buildScene(refs.scene, refs.renderer);
+      const extras = buildScene(refs.scene, refs.renderer);
+      panelMeshesRef.current = extras.panelMeshes;
       if (firstPreset) applyCameraPreset(refs, firstPreset.position, firstPreset.target);
       attachHighlight(refs);
     },
+    onTick,
     deps: [product],
   });
 
@@ -441,6 +482,17 @@ export function CeilingPanelAssembled3D({ product }: Props) {
         onDownload={dl}
         onDownloadAll={dlAll}
       />
+      {/* Panel lift toggle */}
+      <div className="flex justify-center py-1 bg-white/80 border-b border-gray-100">
+        <button
+          onClick={() => setPanelsLifted(v => !v)}
+          className="px-4 py-1.5 text-xs font-medium rounded-full border transition-colors
+            bg-white border-gray-300 text-gray-700 hover:bg-blue-50 hover:border-blue-400
+            hover:text-blue-700 active:scale-95"
+        >
+          {panelsLifted ? '⬇ Tutup Panel' : '⬆ Angkat Panel'}
+        </button>
+      </div>
       <div className="flex-1 min-h-0">
         <div ref={mountRef} className="w-full h-full" />
       </div>
