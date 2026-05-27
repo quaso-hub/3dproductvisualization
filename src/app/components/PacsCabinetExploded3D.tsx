@@ -431,7 +431,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
         anchor: new THREE.Vector3(0, PLINTH_H / 2, OD / 2),              label: 'Plinth / Base' },
     ],
     OW / 2 + GAP + 40,
-    [-10, topY + 10],
+    [-10, topY + 20],
   );
 }
 
@@ -447,13 +447,13 @@ export function PacsCabinetExploded3D({ product }: Props) {
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: {
       cameraStart: product.explodedCameraStart,
-      minDistance: 80,
-      maxDistance: 1000,
+      minDistance: 100,
+      maxDistance: 1500,
     },
     onInit: (refs) => {
       buildScene(refs.scene, refs.renderer);
-      const p = product.cameraPresets[5] ?? product.cameraPresets[0];
-      applyCameraPreset(refs, p.position, p.target);
+      // Use explodedCameraStart with target at cabinet mid-height
+      applyCameraPreset(refs, product.explodedCameraStart, [0, 120, 0]);
       attachHighlight(refs);
     },
     deps: [product],

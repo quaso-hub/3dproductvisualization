@@ -56,16 +56,16 @@ const PACS_CABINET: Product = {
   ],
 
   cameraPresets: [
-    { name: 'Isometric',        position: [220, 130, 220],  target: [0, 100, 0] },
-    { name: 'Tampak Depan',     position: [0,   100, 300],  target: [0, 100, 0] },
-    { name: 'Tampak Samping',   position: [280, 100, 0],    target: [0, 100, 0] },
-    { name: 'Detail Handle',    position: [30,  100, 100],  target: [0, 100, 0] },
-    { name: 'Tampak Atas',      position: [0,   380, 10],   target: [0, 100, 0] },
-    { name: 'Diagonal',         position: [200, 120, 200],  target: [0, 100, 0] },
+    { name: 'Isometric',        position: [280, 160, 280],  target: [0, 100, 0] },
+    { name: 'Tampak Depan',     position: [0,   100, 380],  target: [0, 100, 0] },
+    { name: 'Tampak Samping',   position: [360, 100, 0],    target: [0, 100, 0] },
+    { name: 'Detail Handle',    position: [40,  100, 120],  target: [0, 100, 0] },
+    { name: 'Tampak Atas',      position: [0,   480, 10],   target: [0, 100, 0] },
+    { name: 'Diagonal',         position: [260, 150, 260],  target: [0, 100, 0] },
   ],
 
-  assembledCameraStart: [220, 130, 220],
-  explodedCameraStart:  [260, 150, 260],
+  assembledCameraStart: [280, 160, 280],
+  explodedCameraStart:  [420, 240, 420],
 };
 
 export default PACS_CABINET;
