@@ -237,7 +237,14 @@ function buildSculptedLeadContinuity(scene: THREE.Object3D): void {
 
 // ── Sculpted closer (Sargent 281 style) ───────────────────────
 
-function buildSculptedCloser(scene: THREE.Object3D): void {
+interface CloserHandles {
+  /** Rebuild arm tubes for current door angle (radians). */
+  rebuildArm: (doorAngleRad: number) => void;
+  /** Group containing door-attached foot bracket+screws (parent-add to leafGroup). */
+  doorMountedFoot: THREE.Group;
+}
+
+function buildSculptedCloser(scene: THREE.Object3D): CloserHandles {
   const housing = matCloserHousing();
   const arm = matCloserArm();
 
@@ -323,69 +330,130 @@ function buildSculptedCloser(scene: THREE.Object3D): void {
   knuckleTop.castShadow = true;
   scene.add(knuckleTop);
 
-  // Main arm via smoothTube — TRUE 3D Z-bend (Sargent 281 signature)
-  // Geometry now bridges header-mounted body → door-face foot bracket:
-  //   • pivot starts at knuckle bottom in FRONT of header (z = HZ ≈ 9.35)
-  //   • elbow drops down + back (z toward door surface) — bent forward arm
-  //   • foot lands on door face near top edge (z = DT/2+0.3 ≈ 2.65)
-  // The arm therefore reads as a real pull-side closer reaching from header
-  // down to the door — body stays static while door swings.
-  const pivot = new THREE.Vector3(HX + 5, PIN_BOT_Y - 1.5, HZ);
-  const elbow = new THREE.Vector3(HX + 2, HY - 7, HZ - 1.5);
-  // Foot at door front face — bracket Z extends DT/2 to DT/2+0.6, mid at DT/2+0.3
+  // Pivot point of the closer arm — fixed in world space, just below the
+  // top knuckle. The mainArm rotates around the Y axis here as the door
+  // swings; geometry is rebuilt per-frame in rebuildArm().
+  const ARM_PIVOT = new THREE.Vector3(HX + 5, PIN_BOT_Y - 1.5, HZ);
   const FOOT_Z = DT / 2 + 0.3;
-  const foot = new THREE.Vector3(HX - 1, DH / 2 - 1.5, FOOT_Z);
-  // Main arm
-  const mainArmPoints = [
-    pivot.clone(),
-    pivot.clone().lerp(elbow, 0.3),
-    pivot.clone().lerp(elbow, 0.7),
-    elbow.clone(),
-  ];
-  const mainArm = new THREE.Mesh(smoothTube(mainArmPoints, 0.7, 32, 16), arm);
-  mainArm.castShadow = true;
-  scene.add(mainArm);
+  // Foot bracket sits just below the top rail of the door (~50 mm = 5u).
+  // View glass top edge is at GY + GH/2 = 95, so we keep the foot at y=105
+  // — clearly in the upper rail zone, well above the glass aperture.
+  // Slight shift toward latch side (+x) so the arm reads as a Z-bend forward
+  // rather than a vertical drop.
+  const FOOT_LOCAL_TO_DOOR = new THREE.Vector3(HX - 4, DH / 2 - 5, FOOT_Z);
 
-  // Elbow knuckle (forged steel joint sphere)
-  const elbowKnuckle = new THREE.Mesh(
-    new THREE.SphereGeometry(0.95, 16, 12),
-    arm,
-  );
-  elbowKnuckle.position.copy(elbow);
-  elbowKnuckle.castShadow = true;
-  scene.add(elbowKnuckle);
+  // Arm group holds the rebuildable tube geometry (mainArm + elbowKnuckle +
+  // footArm). Door-mounted bracket + screws live in a separate group that
+  // gets parented under the door leaf so they swing with the door.
+  const armGroup = new THREE.Group();
+  armGroup.userData.partId = 'closer-arm';
+  scene.add(armGroup);
 
-  // Foot arm (smoothTube from elbow to door bracket)
-  const footArmPoints = [
-    elbow.clone(),
-    elbow.clone().lerp(foot, 0.3),
-    elbow.clone().lerp(foot, 0.7),
-    foot.clone(),
-  ];
-  const footArm = new THREE.Mesh(smoothTube(footArmPoints, 0.6, 32, 16), arm);
-  footArm.castShadow = true;
-  scene.add(footArm);
+  const doorMountedFoot = new THREE.Group();
+  doorMountedFoot.userData.partId = 'closer-foot';
 
-  // Door-mount foot bracket — flat plate on door surface, thickness 0.6
-  // Bracket front Z = DT/2+0.6, back Z = DT/2 (flush with door surface)
+  // Bracket + screws on door face (sit on door, swing with it via parent).
   const BRACKET_THICK = 0.6;
-  const BRACKET_Z = DT / 2 + BRACKET_THICK / 2; // bracket center
-  const bracket = new THREE.Mesh(new THREE.BoxGeometry(7.5, 3.5, BRACKET_THICK), matSS(0.15, 1.0));
-  bracket.position.set(foot.x, foot.y, BRACKET_Z);
+  const BRACKET_Z = DT / 2 + BRACKET_THICK / 2;
+  const bracket = new THREE.Mesh(
+    new THREE.BoxGeometry(7.5, 3.5, BRACKET_THICK),
+    matSS(0.15, 1.0),
+  );
+  bracket.position.set(FOOT_LOCAL_TO_DOOR.x, FOOT_LOCAL_TO_DOOR.y, BRACKET_Z);
   bracket.castShadow = true;
-  scene.add(bracket);
+  doorMountedFoot.add(bracket);
 
-  // 4 bracket screws — sunk into bracket front (research §5.3 rule 3)
-  // Bracket front face Z = BRACKET_Z + 0.3 = DT/2+0.6, screws at -0.05 sink
   const screwGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.18, 8);
   for (const sx of [-2.5, 2.5]) {
     for (const sy of [-1.0, 1.0]) {
       const screw = new THREE.Mesh(screwGeo, matSS(0.2, 1.0));
-      screw.position.set(foot.x + sx, foot.y + sy, BRACKET_Z + 0.25);
-      screw.rotation.x = Math.PI / 2; // disc face → +Z
-      scene.add(screw);
+      screw.position.set(
+        FOOT_LOCAL_TO_DOOR.x + sx,
+        FOOT_LOCAL_TO_DOOR.y + sy,
+        BRACKET_Z + 0.25,
+      );
+      screw.rotation.x = Math.PI / 2;
+      doorMountedFoot.add(screw);
     }
   }
+
+  // Rebuildable tube geometry. Recreated whenever the door angle changes.
+  // mainArm: from ARM_PIVOT down to elbow.
+  // elbowKnuckle: sphere at elbow.
+  // footArm: from elbow to current world-space foot position.
+  let mainArmMesh: THREE.Mesh | null = null;
+  let elbowMesh: THREE.Mesh | null = null;
+  let footArmMesh: THREE.Mesh | null = null;
+
+  const rebuildArm = (doorAngleRad: number) => {
+    // Compute current world-space foot. Door rotates around HINGE_X axis
+    // (vertical, through y-axis). Foot starts on door face, so we rotate
+    // its (x,z) around HINGE_X by doorAngleRad. y stays fixed.
+    const fx0 = FOOT_LOCAL_TO_DOOR.x - HINGE_X;
+    const fz0 = FOOT_LOCAL_TO_DOOR.z;
+    const cosA = Math.cos(doorAngleRad);
+    const sinA = Math.sin(doorAngleRad);
+    const fxRot = fx0 * cosA + fz0 * sinA;
+    const fzRot = -fx0 * sinA + fz0 * cosA;
+    const footWorld = new THREE.Vector3(
+      HINGE_X + fxRot,
+      FOOT_LOCAL_TO_DOOR.y,
+      fzRot,
+    );
+
+    // Elbow sits on the line from pivot toward foot, 35% along, slightly
+    // dropped in Y so the arm reads as a Z-bend (real Sargent 281 forearm
+    // angles down then forward). Z-offset toward door face for realism.
+    const dir = new THREE.Vector3().subVectors(footWorld, ARM_PIVOT);
+    const elbowWorld = new THREE.Vector3()
+      .copy(ARM_PIVOT)
+      .add(dir.clone().multiplyScalar(0.35));
+    elbowWorld.y -= 1.5; // forearm droops slightly
+
+    // Drop existing meshes' geometry.
+    if (mainArmMesh) {
+      mainArmMesh.geometry.dispose();
+      armGroup.remove(mainArmMesh);
+    }
+    if (elbowMesh) {
+      elbowMesh.geometry.dispose();
+      armGroup.remove(elbowMesh);
+    }
+    if (footArmMesh) {
+      footArmMesh.geometry.dispose();
+      armGroup.remove(footArmMesh);
+    }
+
+    const mainPts = [
+      ARM_PIVOT.clone(),
+      ARM_PIVOT.clone().lerp(elbowWorld, 0.3),
+      ARM_PIVOT.clone().lerp(elbowWorld, 0.7),
+      elbowWorld.clone(),
+    ];
+    mainArmMesh = new THREE.Mesh(smoothTube(mainPts, 0.85, 32, 16), arm);
+    mainArmMesh.castShadow = true;
+    armGroup.add(mainArmMesh);
+
+    elbowMesh = new THREE.Mesh(new THREE.SphereGeometry(0.95, 16, 12), arm);
+    elbowMesh.position.copy(elbowWorld);
+    elbowMesh.castShadow = true;
+    armGroup.add(elbowMesh);
+
+    const footPts = [
+      elbowWorld.clone(),
+      elbowWorld.clone().lerp(footWorld, 0.3),
+      elbowWorld.clone().lerp(footWorld, 0.7),
+      footWorld.clone(),
+    ];
+    footArmMesh = new THREE.Mesh(smoothTube(footPts, 0.6, 32, 16), arm);
+    footArmMesh.castShadow = true;
+    armGroup.add(footArmMesh);
+  };
+
+  // Initial build at closed position.
+  rebuildArm(0);
+
+  return { rebuildArm, doorMountedFoot };
 }
 
 // ── Sculpted bar pull handle ──────────────────────────────────
@@ -629,6 +697,8 @@ function buildSculptedLeadFrameContinuity(scene: THREE.Object3D): void {
 interface SceneHandles {
   leafPivot: THREE.Group;
   closerGroup: THREE.Group;
+  /** Rebuild closer arm tubes for current door angle (radians). */
+  rebuildCloserArm: (doorAngleRad: number) => void;
 }
 
 function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): SceneHandles {
@@ -861,7 +931,12 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): SceneHan
   leafGroup.add(lockGroup);
   buildSculptedMortise(lockGroup);
 
-  buildSculptedCloser(closerGroup);
+  // Closer body + static parts go on the (header-anchored) closerGroup.
+  // Door-mounted bracket+screws return separately and are parented under
+  // leafGroup so they swing with the door. The arm tubes are rebuilt
+  // per-frame via the returned rebuildArm() handle.
+  const closerHandles = buildSculptedCloser(closerGroup);
+  leafGroup.add(closerHandles.doorMountedFoot);
 
   // ── Annotations ──
   // Continuity-focused: every edge, hardware cutout, and frame overlap is
@@ -892,7 +967,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): SceneHan
     [-DH / 2, DH / 2 + FW + 5],
   );
 
-  return { leafPivot, closerGroup };
+  return { leafPivot, closerGroup, rebuildCloserArm: closerHandles.rebuildArm };
 }
 
 // ── Scenario mode (open / close cycle) ───────────────────────
@@ -937,14 +1012,26 @@ export function PbLeadDoorAssembled3D({ product }: Props) {
     const toAngle = scenarioMode === 'open' ? OPEN_ANGLE_RAD : 0;
     const startTime = performance.now();
 
-    // Closer is hidden during open scenario because arm articulation isn't
-    // modelled; showing static closer with rotated leaf would clip into frame.
-    handles.closerGroup.visible = scenarioMode === 'closed';
+    // Closer stays visible. Arm geometry is rebuilt every frame to track the
+    // door angle, so the static body remains on the header while the arm
+    // articulates to follow the door-face foot bracket.
+    handles.closerGroup.visible = true;
 
     const tick = () => {
       const t = Math.min((performance.now() - startTime) / CYCLE_DURATION_MS, 1);
       const eased = easeInOutCubic(t);
-      handles.leafPivot.rotation.y = fromAngle + (toAngle - fromAngle) * eased;
+      const angle = fromAngle + (toAngle - fromAngle) * eased;
+      handles.leafPivot.rotation.y = angle;
+      handles.rebuildCloserArm(angle);
+
+      // The render loop is on-demand (renders only when controls move or
+      // invalidate is called). Force a redraw every animation frame so the
+      // viewer keeps up with the geometry rebuild.
+      const inv = (refsRef.current?.renderer as
+        | (THREE.WebGLRenderer & { _invalidate?: () => void })
+        | undefined)?._invalidate;
+      if (inv) inv();
+
       if (t < 1) {
         animFrameRef.current = requestAnimationFrame(tick);
       } else {
