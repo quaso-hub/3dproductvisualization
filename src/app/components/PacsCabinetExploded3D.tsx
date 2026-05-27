@@ -62,7 +62,12 @@ const SHELF_YS = [
 ];
 
 // -─ Explosion gap ---------------------
-const GAP = 35;
+// GAP harus lebih besar dari OW/2 (60) supaya pintu tidak overlap body.
+// Pintu kiri di LEFT_DOOR_X(-29) - GAP_X → harus < -(OW/2) = -60
+// Pintu kanan di RIGHT_DOOR_X(29) + GAP_X → harus > +(OW/2) = +60
+const GAP = 80;          // lateral gap untuk pintu kiri/kanan
+const GAP_Z = 70;        // forward gap untuk shelves dan pintu
+const GAP_TOP = 50;      // vertical gap untuk top panel
 
 // -─ Material factories -------------------─
 
@@ -335,12 +340,12 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   addBox(bodyGroup, 0.5, innerH, innerD, (innerW / 2), OH / 2, -0.5, intMat);
   addBox(bodyGroup, innerW, 0.5, innerD, 0, INTERIOR_FLOOR_Y, -0.5, intMat);
 
-  // - 2. Top panel - lifted by GAP -------------─
+  // - 2. Top panel - lifted by GAP_TOP -------------─
   const topGroup = new THREE.Group();
   topGroup.userData.partId = 'top';
   scene.add(topGroup);
 
-  const topY = OH - WT / 2 + GAP;
+  const topY = OH - WT / 2 + GAP_TOP;
   addBox(topGroup, OW, WT, OD, 0, topY, 0, ssMat);
 
   // Top panel edge lines
@@ -360,8 +365,8 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   leftDoorGroup.userData.partId = 'left-door';
   scene.add(leftDoorGroup);
 
-  const leftDoorExX = LEFT_DOOR_X - GAP;
-  const leftDoorExZ = OD / 2 + GAP * 0.6;
+  const leftDoorExX = LEFT_DOOR_X - GAP;          // -29 - 80 = -109
+  const leftDoorExZ = OD / 2 + GAP_Z * 0.5;       // 20 + 35 = 55
   buildDoorAssembly(leftDoorGroup, leftDoorExX, leftDoorExZ, false);
 
   // Connectors: body left edge → left door
@@ -376,8 +381,8 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   rightDoorGroup.userData.partId = 'right-door';
   scene.add(rightDoorGroup);
 
-  const rightDoorExX = RIGHT_DOOR_X + GAP;
-  const rightDoorExZ = OD / 2 + GAP * 0.6;
+  const rightDoorExX = RIGHT_DOOR_X + GAP;         // 29 + 80 = 109
+  const rightDoorExZ = OD / 2 + GAP_Z * 0.5;      // 20 + 35 = 55
   buildDoorAssembly(rightDoorGroup, rightDoorExX, rightDoorExZ, true);
 
   // Connectors: body right edge → right door
@@ -392,7 +397,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   shelvesGroup.userData.partId = 'shelves';
   scene.add(shelvesGroup);
 
-  const shelfExZ = GAP;
+  const shelfExZ = OD / 2 + GAP_Z;                // 20 + 70 = 90
   const shelfMat = matSSInterior();
   SHELF_YS.forEach(sy => {
     addBox(shelvesGroup, SHELF_W, SHELF_T, SHELF_D, 0, sy, shelfExZ, shelfMat);
@@ -430,7 +435,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
       { partId: 'plinth',
         anchor: new THREE.Vector3(0, PLINTH_H / 2, OD / 2),              label: 'Plinth / Base' },
     ],
-    OW / 2 + GAP + 40,
+    rightDoorExX + DOOR_W / 2 + 30,
     [-10, topY + 20],
   );
 }

@@ -297,7 +297,10 @@ function buildSculptedBasin(scene: THREE.Object3D, cx: number): void {
   floor.receiveShadow = true;
   scene.add(floor);
 
-  // Chrome drain ring (Lathe profile — chamfered top)
+  // Chrome drain ring — sits ON the basin floor, centered on drain hole.
+  // Floor is at baseY + 0.3 (with slope center slightly lower).
+  // Ring top face flush with floor center → ring.y = baseY + 0.3
+  const drainY = baseY + 0.3;
   const ringProfile: Array<[number, number]> = [
     [0, 0],
     [2.5, 0],
@@ -308,13 +311,13 @@ function buildSculptedBasin(scene: THREE.Object3D, cx: number): void {
     [0, 0.2],
   ];
   const ring = new THREE.Mesh(latheProfile(ringProfile, 36), matChrome());
-  ring.position.set(cx, baseY - 0.5, -7.5);
+  ring.position.set(cx, drainY, -7.5);
   ring.castShadow = true;
   scene.add(ring);
 
-  // Strainer: thin disc with slot pattern (use beveledDisc + dark slots)
+  // Strainer disc — sits on top of ring, slightly above floor
   const strainer = new THREE.Mesh(beveledDisc(2.0, 0.15, 0.05, 32), matChrome());
-  strainer.position.set(cx, baseY - 0.5, -7.5);
+  strainer.position.set(cx, drainY + 0.2, -7.5);
   scene.add(strainer);
   // Strainer slots (8 thin radial)
   for (let i = 0; i < 8; i++) {
@@ -323,17 +326,18 @@ function buildSculptedBasin(scene: THREE.Object3D, cx: number): void {
       new THREE.BoxGeometry(0.12, 0.05, 1.6),
       new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.7 }),
     );
-    slot.position.set(cx + Math.cos(angle) * 0.2, baseY - 0.4, -7.5 + Math.sin(angle) * 0.2);
+    slot.position.set(cx + Math.cos(angle) * 0.2, drainY + 0.25, -7.5 + Math.sin(angle) * 0.2);
     slot.rotation.y = angle;
     scene.add(slot);
   }
 
-  // Drain throat going down (dark cyl)
+  // Drain throat — goes DOWN from floor into cabinet void
+  // Positioned slightly behind center (toward backsplash) to clear cabinet divider
   const drainThroat = new THREE.Mesh(
-    new THREE.CylinderGeometry(2.0, 2.0, 1.5, 24),
+    new THREE.CylinderGeometry(1.8, 1.8, 3.0, 24),
     new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.7, metalness: 0.3 }),
   );
-  drainThroat.position.set(cx, baseY - 1.8, -7.5);
+  drainThroat.position.set(cx, drainY - 1.5, -7.5);
   scene.add(drainThroat);
 }
 
@@ -626,34 +630,23 @@ function buildSculptedMirror(scene: THREE.Object3D, mx: number): void {
   const frame = matSSPolished();
   const glass = matMirror();
 
-  // GEOMETRY FIX 2026-05-27: mirror must be flush-mounted on the FRONT face
-  // of the backsplash. Backsplash is at Z = BP_Z (-29) with depth 2, so its
-  // front face is at Z = BP_Z + 2 = -27. Mirror glass sits at Z = -26.5
-  // (3mm proud of backsplash face). Frame sits at Z = -26.2 (proud of glass).
-  //
-  // Mirror vertical position: backsplash runs Y=80→155. Mirror sits in the
-  // lower 2/3 of backsplash: bottom at Y=88 (80+8 margin), top at Y=138
-  // (50u = 500mm tall mirror). Center Y = 113.
-  //
-  // Mirror width: 55u (550mm) per bay — fits within 80u bay width with margin.
-  const MIRROR_Z_GLASS = -26.5;  // front face of backsplash + 0.5 glass
-  const MIRROR_Z_FRAME = -26.2;  // frame proud of glass
-  const MIRROR_BOT_Y  = 88;      // 80mm above backsplash base
-  const MIRROR_TOP_Y  = 138;     // 500mm tall
+  // Mirror flush-mounted on front face of backsplash.
+  // Backsplash front face at Z = BP_Z + 2 = -27.
+  // Mirror glass: 3mm proud → Z = -26.5
+  // Frame: L-profile box bars, 1.6u wide × 1.4u deep, proud of glass → Z = -26.0
+  const MIRROR_Z_GLASS = -26.5;
+  const MIRROR_Z_FRAME = -26.0;
+  const MIRROR_BOT_Y  = 88;
+  const MIRROR_TOP_Y  = 138;
   const MIRROR_CY     = (MIRROR_BOT_Y + MIRROR_TOP_Y) / 2; // 113
   const MIRROR_H      = MIRROR_TOP_Y - MIRROR_BOT_Y;       // 50
   const MIRROR_W      = 55;
 
-  // Mounting bracket tabs — 2 per mirror, top and bottom, recessed into backsplash
-  const bracketGeo = new THREE.BoxGeometry(2.5, 1.0, 1.2);
-  for (const by of [MIRROR_BOT_Y + 1, MIRROR_TOP_Y - 1]) {
-    const bracket = new THREE.Mesh(bracketGeo, matSSPolished());
-    bracket.position.set(mx, by, MIRROR_Z_GLASS - 0.3);
-    bracket.castShadow = true;
-    scene.add(bracket);
-  }
+  // Frame bar dimensions
+  const FB = 1.6;   // frame bar width (face)
+  const FD = 1.4;   // frame bar depth (into scene)
 
-  // Glass slab — flush on backsplash front face
+  // Glass slab
   const glassMesh = new THREE.Mesh(
     beveledPlate(MIRROR_W, MIRROR_H, 0.5, 0.2, 2),
     glass,
@@ -661,52 +654,51 @@ function buildSculptedMirror(scene: THREE.Object3D, mx: number): void {
   glassMesh.position.set(mx, MIRROR_CY, MIRROR_Z_GLASS);
   scene.add(glassMesh);
 
-  // Mitred L-profile frame — 4 bars at 45° corners
-  const profileShape = new THREE.Shape();
-  profileShape.moveTo(0, 0);
-  profileShape.lineTo(1.6, 0);
-  profileShape.lineTo(1.6, 1.4);
-  profileShape.lineTo(0.4, 1.4);
-  profileShape.lineTo(0.4, 1.0);
-  profileShape.lineTo(0, 1.0);
-  profileShape.closePath();
-
-  // Top bar
-  const topGeo = new THREE.ExtrudeGeometry(profileShape, { depth: MIRROR_W + 2, bevelEnabled: false });
-  topGeo.rotateY(-Math.PI / 2);
-  topGeo.translate((MIRROR_W + 2) / 2, 0, 0);
-  const topBar = new THREE.Mesh(topGeo, frame);
-  topBar.position.set(mx - (MIRROR_W + 2) / 2, MIRROR_TOP_Y, MIRROR_Z_FRAME);
-  topBar.rotation.set(0, 0, Math.PI);
+  // Frame bars — simple BoxGeometry, no rotation tricks
+  // Top bar (horizontal, spans full mirror width + 2×FB for corner overlap)
+  const topBar = new THREE.Mesh(
+    new THREE.BoxGeometry(MIRROR_W + FB * 2, FB, FD),
+    frame,
+  );
+  topBar.position.set(mx, MIRROR_TOP_Y + FB / 2, MIRROR_Z_FRAME);
   topBar.castShadow = true;
   scene.add(topBar);
 
   // Bottom bar
-  const botGeo = new THREE.ExtrudeGeometry(profileShape, { depth: MIRROR_W + 2, bevelEnabled: false });
-  botGeo.rotateY(-Math.PI / 2);
-  botGeo.translate((MIRROR_W + 2) / 2, 0, 0);
-  const botBar = new THREE.Mesh(botGeo, frame);
-  botBar.position.set(mx - (MIRROR_W + 2) / 2, MIRROR_BOT_Y, MIRROR_Z_FRAME);
+  const botBar = new THREE.Mesh(
+    new THREE.BoxGeometry(MIRROR_W + FB * 2, FB, FD),
+    frame,
+  );
+  botBar.position.set(mx, MIRROR_BOT_Y - FB / 2, MIRROR_Z_FRAME);
   botBar.castShadow = true;
   scene.add(botBar);
 
-  // Left bar
-  const leftGeo = new THREE.ExtrudeGeometry(profileShape, { depth: MIRROR_H, bevelEnabled: false });
-  leftGeo.rotateY(-Math.PI / 2);
-  leftGeo.rotateZ(Math.PI / 2);
-  const leftBar = new THREE.Mesh(leftGeo, frame);
-  leftBar.position.set(mx - MIRROR_W / 2 - 1, MIRROR_BOT_Y, MIRROR_Z_FRAME);
+  // Left bar (vertical, between top and bottom bars)
+  const leftBar = new THREE.Mesh(
+    new THREE.BoxGeometry(FB, MIRROR_H, FD),
+    frame,
+  );
+  leftBar.position.set(mx - MIRROR_W / 2 - FB / 2, MIRROR_CY, MIRROR_Z_FRAME);
   leftBar.castShadow = true;
   scene.add(leftBar);
 
   // Right bar
-  const rightGeo = new THREE.ExtrudeGeometry(profileShape, { depth: MIRROR_H, bevelEnabled: false });
-  rightGeo.rotateY(-Math.PI / 2);
-  rightGeo.rotateZ(-Math.PI / 2);
-  const rightBar = new THREE.Mesh(rightGeo, frame);
-  rightBar.position.set(mx + MIRROR_W / 2 + 1, MIRROR_BOT_Y, MIRROR_Z_FRAME);
+  const rightBar = new THREE.Mesh(
+    new THREE.BoxGeometry(FB, MIRROR_H, FD),
+    frame,
+  );
+  rightBar.position.set(mx + MIRROR_W / 2 + FB / 2, MIRROR_CY, MIRROR_Z_FRAME);
   rightBar.castShadow = true;
   scene.add(rightBar);
+
+  // Mounting bracket tabs — 2 per mirror, recessed into backsplash
+  const bracketGeo = new THREE.BoxGeometry(2.5, 1.0, 1.2);
+  for (const by of [MIRROR_BOT_Y + 2, MIRROR_TOP_Y - 2]) {
+    const bracket = new THREE.Mesh(bracketGeo, matSSPolished());
+    bracket.position.set(mx, by, MIRROR_Z_GLASS - 0.4);
+    bracket.castShadow = true;
+    scene.add(bracket);
+  }
 }
 
 // ── Sculpted TMV (Thermostatic Mixing Valve) ───────────────────
