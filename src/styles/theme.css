@@ -1,83 +1,166 @@
+/* ─── Root & Base ───────────────────────────────────────────── */
+:root {
+  /* Prevent text size adjustment on mobile */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
+  /* Better box sizing */
+  *, *::before, *::after { box-sizing: border-box; }
+}
+
+/* ─── MONO THEME — Tweakcn inspired ────────────────────────────────
+ * ─────────────────────────────────────────────────────────────
+ * Minimalist monospace theme with sharp edges (0 radius).
+ * Based on: https://tweakcn.com/r/themes/mono.json
+ * 
+ * Features:
+ * - Monospace font throughout (Geist Mono style)
+ * - Zero border radius (sharp corners)
+ * - Black & white color palette
+ * - No shadows
+ * ─────────────────────────────────────────────────────────────
+ */
+
 @custom-variant dark (&:is(.dark *));
 
+/* ─── Letter Spacing Variables ───────────────────────────────── */
 :root {
-  --font-size: 16px;
-  --background: #ffffff;
-  --foreground: oklch(0.145 0 0);
-  --card: #ffffff;
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #030213;
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.95 0.0058 264.53);
-  --secondary-foreground: #030213;
-  --muted: #ececf0;
-  --muted-foreground: #717182;
-  --accent: #e9ebef;
-  --accent-foreground: #030213;
-  --destructive: #d4183d;
-  --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
-  --input: transparent;
-  --input-background: #f3f3f5;
-  --switch-background: #cbced4;
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #030213;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --tracking-normal: 0em;
+  --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
+  --tracking-tight: calc(var(--tracking-normal) - 0.025em);
+  --tracking-wide: calc(var(--tracking-normal) + 0.025em);
+  --tracking-wider: calc(var(--tracking-normal) + 0.05em);
+  --tracking-widest: calc(var(--tracking-normal) + 0.1em);
 }
 
+/* ─── LIGHT THEME ────────────────────────────────────────────── */
+:root {
+  /* Base */
+  --font-size: 15px;
+  --background: oklch(1.0000 0 0);
+  --foreground: oklch(0.1448 0 0);
+  
+  /* Cards & Popovers */
+  --card: oklch(1.0000 0 0);
+  --card-foreground: oklch(0.1448 0 0);
+  --popover: oklch(1.0000 0 0);
+  --popover-foreground: oklch(0.1448 0 0);
+  
+  /* Primary - Dark gray (not blue) */
+  --primary: oklch(0.2046 0 0);
+  --primary-foreground: oklch(0.9851 0 0);
+  
+  /* Secondary */
+  --secondary: oklch(0.9702 0 0);
+  --secondary-foreground: oklch(0.2046 0 0);
+  
+  /* Muted */
+  --muted: oklch(0.9702 0 0);
+  --muted-foreground: oklch(0.5486 0 0);
+  
+  /* Accent */
+  --accent: oklch(0.9702 0 0);
+  --accent-foreground: oklch(0.2046 0 0);
+  
+  /* Destructive */
+  --destructive: oklch(0.5770 0.2220 27.0);
+  --destructive-foreground: oklch(0.9702 0 0);
+  
+  /* Borders & Inputs */
+  --border: oklch(0.9219 0 0);
+  --input: oklch(0.9219 0 0);
+  --input-background: oklch(0.9851 0 0);
+  --ring: oklch(0.7090 0 0);
+  
+  /* Radius — ZERO for sharp mono aesthetic */
+  --radius: 0rem;
+  
+  /* Sidebar */
+  --sidebar: oklch(0.9851 0 0);
+  --sidebar-foreground: oklch(0.1448 0 0);
+  --sidebar-primary: oklch(0.2046 0 0);
+  --sidebar-primary-foreground: oklch(0.9851 0 0);
+  --sidebar-accent: oklch(0.9702 0 0);
+  --sidebar-accent-foreground: oklch(0.2046 0 0);
+  --sidebar-border: oklch(0.9219 0 0);
+  --sidebar-ring: oklch(0.7090 0 0);
+  
+  /* Charts — monochrome */
+  --chart-1: oklch(0.5555 0 0);
+  --chart-2: oklch(0.4555 0 0);
+  --chart-3: oklch(0.3555 0 0);
+  --chart-4: oklch(0.6555 0 0);
+  --chart-5: oklch(0.7555 0 0);
+  
+  /* Switch */
+  --switch-background: oklch(0.8500 0 0);
+  
+  /* Font weights */
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --font-weight-semibold: 600;
+  
+  /* Shadows — disabled for mono aesthetic */
+  --shadow-2xs: 0px 1px 0px 0px hsl(0 0% 0% / 0.00);
+  --shadow-xs: 0px 1px 0px 0px hsl(0 0% 0% / 0.00);
+  --shadow-sm: 0px 0px 0px 0px hsl(0 0% 0% / 0.00);
+  --shadow: 0px 0px 0px 0px hsl(0 0% 0% / 0.00);
+  --shadow-md: 0px 0px 0px 0px hsl(0 0% 0% / 0.00);
+  --shadow-lg: 0px 0px 0px 0px hsl(0 0% 0% / 0.00);
+  --shadow-xl: 0px 0px 0px 0px hsl(0 0% 0% / 0.00);
+  --shadow-2xl: 0px 0px 0px 0px hsl(0 0% 0% / 0.00);
+}
+
+/* ─── DARK THEME ─────────────────────────────────────────────── */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+  --background: oklch(0.1448 0 0);
+  --foreground: oklch(0.9851 0 0);
+  
+  --card: oklch(0.2134 0 0);
+  --card-foreground: oklch(0.9851 0 0);
+  --popover: oklch(0.2686 0 0);
+  --popover-foreground: oklch(0.9851 0 0);
+  
+  --primary: oklch(0.9851 0 0);
+  --primary-foreground: oklch(0.2046 0 0);
+  
+  --secondary: oklch(0.2686 0 0);
+  --secondary-foreground: oklch(0.9851 0 0);
+  
+  --muted: oklch(0.2686 0 0);
+  --muted-foreground: oklch(0.7090 0 0);
+  
+  --accent: oklch(0.3715 0 0);
+  --accent-foreground: oklch(0.9851 0 0);
+  
+  --destructive: oklch(0.7022 0.1892 22.2279);
+  --destructive-foreground: oklch(0.2686 0 0);
+  
+  --border: oklch(0.3407 0 0);
+  --input: oklch(0.2686 0 0);
+  --input-background: oklch(0.3407 0 0);
+  --ring: oklch(0.4386 0 0);
+  
+  --sidebar: oklch(0.2046 0 0);
+  --sidebar-foreground: oklch(0.9851 0 0);
+  --sidebar-primary: oklch(0.9851 0 0);
+  --sidebar-primary-foreground: oklch(0.2046 0 0);
+  --sidebar-accent: oklch(0.2686 0 0);
+  --sidebar-accent-foreground: oklch(0.9851 0 0);
+  --sidebar-border: oklch(0.3407 0 0);
+  --sidebar-ring: oklch(0.4386 0 0);
+  
+  --chart-1: oklch(0.9851 0 0);
+  --chart-2: oklch(0.8851 0 0);
+  --chart-3: oklch(0.7851 0 0);
+  --chart-4: oklch(0.6851 0 0);
+  --chart-5: oklch(0.5851 0 0);
+  
+  --switch-background: oklch(0.4000 0 0);
 }
 
+/* ─── THEME INLINE MAPPING ───────────────────────────────────── */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -119,6 +202,7 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* ─── BASE STYLES ────────────────────────────────────────────── */
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -126,56 +210,297 @@
 
   body {
     @apply bg-background text-foreground;
+    letter-spacing: var(--tracking-normal);
   }
-
-  /**
-  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
-  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
-  */
 
   html {
     font-size: var(--font-size);
   }
 
-  h1 {
-    font-size: var(--text-2xl);
+  /* Typography — clean & minimal */
+  h1, h2, h3, h4 {
+    font-weight: var(--font-weight-semibold);
+    line-height: 1.4;
+    letter-spacing: var(--tracking-tight);
+  }
+
+  h1 { font-size: 1.875rem; }
+  h2 { font-size: 1.5rem; }
+  h3 { font-size: 1.25rem; }
+  h4 { font-size: 1rem; }
+
+  label, button {
     font-weight: var(--font-weight-medium);
     line-height: 1.5;
   }
 
-  h2 {
-    font-size: var(--text-xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h3 {
-    font-size: var(--text-lg);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h4 {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  label {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  button {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  input {
-    font-size: var(--text-base);
+  input, textarea {
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
   }
+  
+  /* Focus states — sharp outline */
+  *:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* ─── COMPONENT OVERRIDES ────────────────────────────────────── */
+
+/* Buttons — mono style */
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+/* Cards — zero radius, subtle border */
+.card {
+  border-radius: 0;
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+/* 3D Viewer container — keep functionality intact */
+.viewer-3d-container {
+  background: oklch(0.9800 0 0); /* Light background for 3D canvas */
+  border: 1px solid var(--border);
+  border-radius: 0;
+}
+
+/* ─── HVAC UI Animations ─────────────────────────────────────── */
+
+@keyframes fadeInOut {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+  15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(4px); }
+}
+
+/* HVAC CSS2D Labels — keep monospace aesthetic */
+.hvac-label {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Geist Mono', ui-monospace, monospace;
+  font-size: 10px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #e2e8f0;
+  padding: 3px 10px;
+  border-radius: 0;
+  border-left: 3px solid oklch(0.5555 0 0); /* Monochrome accent */
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+}
+
+/* ─── SCROLLBAR — minimal ─────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(0.7500 0 0);
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.5500 0 0);
+}
+
+/* ─── SELECTION ───────────────────────────────────────────────── */
+::selection {
+  background: oklch(0.8500 0 0);
+  color: oklch(0.1000 0 0);
+}
+
+/* ─── ACCESSIBILITY ────────────────────────────────────────────── */
+
+/* Focus visible - sharp outline for MONO */
+*:focus-visible {
+  outline: 2px solid oklch(0.2046 0 0);
+  outline-offset: 2px;
+}
+
+/* Skip link for keyboard users */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: oklch(0.1448 0 0);
+  color: oklch(0.9851 0 0);
+  padding: 8px 16px;
+  z-index: 100;
+  text-decoration: none;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --border: oklch(0.0000 0 0);
+    --foreground: oklch(0.0000 0 0);
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  body {
+    background: white;
+    color: black;
+  }
+}
+
+/* ─── Loading Animations for Lazy Viewers ───────────────────────── */
+
+/* Slow spin for 3D loading cube */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Reverse spin */
+@keyframes spin-reverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+/* Shimmer effect for progress bars */
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(200%); }
+}
+
+/* Fade in */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Apply animations */
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
+.animate-spin-reverse {
+  animation: spin-reverse 2s linear infinite;
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin-slow,
+  .animate-spin-reverse,
+  .animate-shimmer,
+  .animate-fade-in {
+    animation: none;
+  }
+}
+
+/* ─── Mobile Responsive ────────────────────────────────────────── */
+
+/* Mobile-first - base styles are for 320px+ */
+@media (max-width: 640px) {
+  /* Smaller sidebar on mobile */
+  :root {
+    --font-size: 14px;
+  }
+  
+  /* Reduce spacing */
+  .p-4 { padding: 0.75rem; }
+  .gap-2 { gap: 0.375rem; }
+  
+  /* Smaller text */
+  .text-xs { font-size: 0.625rem; }
+  .text-sm { font-size: 0.75rem; }
+  
+  /* Full-width main */
+  main { padding: 0.25rem; }
+}
+
+/* Tablet - 640px+ */
+@media (min-width: 640px) and (max-width: 1024px) {
+  /* Medium sizing */
+  :root {
+    --font-size: 14.5px;
+  }
+}
+
+/* Container query support for viewers */
+@supports (container-type: inline-size) {
+  .viewer-container {
+    container-type: inline-size;
+  }
+  
+  @container (max-width: 400px) {
+    .viewer-container .text-sm { font-size: 0.75rem; }
+    .viewer-container .p-4 { padding: 0.5rem; }
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  /* Larger touch targets */
+  button, a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Remove hover effects on touch */
+  button:hover,
+  a:hover {
+    background: inherit;
+  }
+  
+  /* Active state instead */
+  button:active,
+  a:active {
+    opacity: 0.8;
+  }
+}
+
+/* Landscape phone */
+@media (max-height: 500px) and (orientation: landscape) {
+  /* Reduce header height */
+  header { padding: 0.5rem; }
+  header p { display: none; }
+  
+  /* More space for viewer */
+  .viewer-container { height: calc(100vh - 80px); }
 }

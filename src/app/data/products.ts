@@ -5,7 +5,8 @@
  * │  Untuk menambah produk baru:                        │
  * │  1. Buat file di src/app/products/<nama>.ts         │
  * │  2. Daftarkan di src/app/products/index.ts          │
- * │  Tidak perlu ubah file ini.                         │
+ * │  3. Tambah viewerType ke VIEWER_TYPES jika custom   │
+ * │  4. Daftarkan komponen di data/viewerRegistry.ts     │
  * └─────────────────────────────────────────────────────┘
  */
 
@@ -54,11 +55,43 @@ export type ViewType = 'assembled' | 'exploded';
  * Tambah entry baru jika perlu kategori baru.
  */
 export type ProductCategory =
-  | 'Wall Panel Element'   // panel dinding sandwich PIR/GI — sebelumnya 'Panel Dinding' + 'Cleanroom'
+  | 'Wall Panel Element'   // panel dinding sandwich PIR/GI - sebelumnya 'Panel Dinding' + 'Cleanroom'
   | 'Plafon'
   | 'Lantai'
   | 'Pintu & Partisi'
+  | 'Peralatan Medis'      // X-Ray Viewer, illuminator, dll
+  | 'Peralatan Kontrol'    // Surgical Control Panel, BMS interface
   | 'Lainnya';
+
+// ============================================================
+// VIEWER TYPES — Central Definition
+// ============================================================
+
+/**
+ * Semua viewerType yang terdaftar.
+ * UBAH DI SINI jika ada viewerType baru.
+ * 
+ * viewerType memetakan ke komponen di data/viewerRegistry.ts
+ */
+export const VIEWER_TYPES = [
+  'panel',           // default
+  'curving',
+  'hermetic-door',
+  'pb-lead-door',
+  'scrub-sink',
+  'pass-box',
+  'pacs-cabinet',
+  'return-air-grille',
+  'laf-system',
+  'ceiling-panel',
+  'surgical-panel',
+  'hvac-system',
+] as const;
+
+/**
+ * Type dari viewerType — otomatis dari VIEWER_TYPES
+ */
+export type ViewerType = typeof VIEWER_TYPES[number];
 
 export interface Product {
   /** Slug unik — dipakai di URL & nama file download. */
@@ -76,25 +109,87 @@ export interface Product {
   /** View mana saja yang tersedia untuk produk ini. */
   views: ViewType[];
   /**
-   * Tipe renderer 3D.
-   * 'panel'         = flat sandwich panel (default, AssembledPanel3D / ExplodedPanel3D)
-   * 'curving'       = profil-L aluminium dengan radius (CurvingAssembled3D / CurvingExploded3D)
-   * 'hermetic-door' = pintu geser otomatis hermetic (HermeticDoorAssembled3D / HermeticDoorExploded3D)
-   * 'pb-lead-door'  = pintu swing otomatis berlapis Pb (PbLeadDoorAssembled3D / PbLeadDoorExploded3D)
-   * 'scrub-sink'    = wastafel scrub stainless steel (ScrubSinkAssembled3D / ScrubSinkExploded3D)
-   * 'pass-box'      = pass box stainless steel SUS-304 (PassBoxAssembled3D / PassBoxExploded3D)
-   * 'pacs-cabinet'  = lemari penyimpanan medis SUS-304 (PacsCabinetAssembled3D / PacsCabinetExploded3D)
-   * 'return-air-grille' = grille return air dinding SUS-304 (ReturnAirGrilleAssembled3D / ReturnAirGrilleExploded3D)
-   * 'laf-system'        = LAF ceiling system HVAC (LafSystemAssembled3D / LafSystemExploded3D)
-   * 'ceiling-panel'     = ceiling panel system PIR + LED grid + LAF integrated (CeilingPanelAssembled3D / CeilingPanelExploded3D)
-   * 'surgical-panel'    = surgical control panel touchscreen wall-mounted (SurgicalPanelAssembled3D / SurgicalPanelExploded3D)
-   * 'hvac-system'       = HVAC system diagram — 7 components in OR room context (HvacSystemAssembled3D / HvacSystemExploded3D)
+   * Tipe renderer 3D — memetakan ke komponen di viewerRegistry.ts.
+   * 
+   * Lihat VIEWER_TYPES untuk daftar lengkap.
+   * Jika tidak di-set, default ke 'panel' (AssembledPanel3D / ExplodedPanel3D).
    */
-  viewerType?: 'panel' | 'curving' | 'hermetic-door' | 'pb-lead-door' | 'scrub-sink' | 'pass-box' | 'pacs-cabinet' | 'return-air-grille' | 'laf-system' | 'ceiling-panel' | 'surgical-panel' | 'hvac-system';
+  viewerType?: ViewerType;
   layers: Layer[];
   dimensions: PanelDimensions;
   specs: ProductSpec[];
   cameraPresets: CameraPreset[];
   assembledCameraStart: [number, number, number];
   explodedCameraStart: [number, number, number];
+
+  /** HVAC-specific legacy metadata for older overlays; active BIM v2 runtime mainly reads hvacSpecs. */
+  hvacComponents?: HVACComponent[];
+  /** HVAC-specific legacy metadata for older overlays; active BIM v2 runtime defines modes in hvac-bim-v2/*. */
+  hvacModes?: HVACMode[];
+  /** HVAC-specific: Technical baseline still consumed by the active BIM v2 overlay. */
+  hvacSpecs?: HVACSpecs;
+}
+
+// ============================================================
+// HVAC-SPECIFIC TYPES
+// ============================================================
+
+export type HVACModeKey =
+  | 'full-system'
+  | 'supply-air'
+  | 'return-air'
+  | 'refrigerant'
+  | 'floor-plan'
+  | 'exploded';
+
+export interface HVACMode {
+  key: HVACModeKey;
+  label: string;
+  icon: string;
+  description: string;
+  highlightColor?: number;
+}
+
+export type HVACComponentType =
+  | 'ahu'
+  | 'cdu'
+  | 'laf'
+  | 'supply-duct'
+  | 'return-duct'
+  | 'exhaust-duct'
+  | 'fresh-air-intake'
+  | 'refrigerant-pipe'
+  | 'drain-pipe'
+  | 'return-grille'
+  | 'supply-diffuser'
+  | 'surgical-panel'
+  | 'pressure-sensor'
+  | 'building-shell'
+  | 'operating-table'
+  | 'vibration-isolator';
+
+export interface HVACComponent {
+  id: string;
+  type: HVACComponentType;
+  label: string;
+  glbPath?: string;
+  procedural: boolean;
+  position: { x: number; y: number; z: number };
+  dimensions?: { w: number; h: number; d: number };
+  color?: number;
+  visibleInModes: HVACModeKey[];
+  highlightInModes?: Partial<Record<HVACModeKey, number>>;
+  opacityInModes?: Partial<Record<HVACModeKey, number>>;
+  specs?: Record<string, string>;
+}
+
+export interface HVACSpecs {
+  standard: string;
+  airChanges: string;
+  supplyTemp: string;
+  positivePresure: string;
+  hepaFilter: string;
+  noiseLevel: string;
+  coolingCapacity: string;
+  freshAirRatio: string;
 }

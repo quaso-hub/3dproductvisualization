@@ -1,0 +1,29 @@
+/**
+ * FONTS — Geist Mono Style
+ * ─────────────────────────────────────────────────────────────
+ * Monospace font stack for the Mono theme.
+ * Falls back to system monospace if Geist/JetBrains not available.
+ * ─────────────────────────────────────────────────────────────
+ */
+
+/* Import Google Fonts - JetBrains Mono (similar to Geist Mono) */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
+/* Font family variables */
+:root {
+  --font-sans: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', 'Liberation Mono', Menlo, monospace;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', 'Liberation Mono', Menlo, monospace;
+  --font-serif: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', 'Liberation Mono', Menlo, monospace;
+}
+
+/* Apply to body */
+@layer base {
+  body {
+    font-family: var(--font-sans);
+  }
+  
+  /* Code blocks and pre elements */
+  pre, code, kbd, samp, tt {
+    font-family: var(--font-mono);
+  }
+}

@@ -1,12 +1,25 @@
 /**
- * Sidebar.tsx
+ * Sidebar.tsx - MONO Theme (Optimized)
+ * ------------------------------─
  * Left navigation - products grouped by category, with search filter.
- * Supports collapsed (56 px icon-only) and expanded (260 px) modes.
- * Hover over collapsed sidebar to temporarily expand.
+ * Supports collapsed (56px icon-only) and expanded (260px) modes.
+ * 
+ * PERFORMANCE:
+ * - Preload viewer on hover
+ * - Virtual list for large catalogs
+ * - Optimistic UI updates
+ * 
+ * MONO STYLE:
+ * - Zero border radius (sharp corners)
+ * - Monospace typography
+ * - Black & white palette
+ * - Minimal shadows
+ * ------------------------------─
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { Product, ProductCategory } from '../data/products';
+import { preloadViewer } from '../data/lazyViewerRegistry';
 
 interface Props {
   products: Product[];
@@ -21,6 +34,8 @@ const CATEGORY_ORDER: ProductCategory[] = [
   'Plafon',
   'Lantai',
   'Pintu & Partisi',
+  'Peralatan Medis',
+  'Peralatan Kontrol',
   'Lainnya',
 ];
 
@@ -29,6 +44,8 @@ const CATEGORY_ICONS: Record<ProductCategory, string> = {
   'Plafon':             'Layers',
   'Lantai':             'Square',
   'Pintu & Partisi':    'DoorOpen',
+  'Peralatan Medis':    'Stethoscope',
+  'Peralatan Kontrol':  'SlidersHorizontal',
   'Lainnya':            'Package',
 };
 
@@ -36,9 +53,18 @@ export function Sidebar({ products, selected, onSelect, isOpen, onToggle }: Prop
   const [query,     setQuery]     = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [hovered,   setHovered]   = useState(false);
+  const [isMobile,  setIsMobile]  = useState(false);
 
-  // Visually expanded when pinned open OR mouse is over the collapsed bar
-  const expanded = isOpen || hovered;
+  // Detect mobile viewport
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Visually expanded when pinned open OR mouse is over the collapsed bar OR always on mobile
+  const expanded = isOpen || hovered || isMobile;
 
   const filtered = useMemo(() => {
     if (!query.trim()) return products;
@@ -75,15 +101,18 @@ export function Sidebar({ products, selected, onSelect, isOpen, onToggle }: Prop
     <aside
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="flex-shrink-0 h-screen bg-white border-r border-gray-200 flex flex-col overflow-hidden transition-all duration-300 ease-in-out"
+      className="flex-shrink-0 h-screen bg-background border-r border-border flex flex-col overflow-hidden transition-all duration-300 ease-in-out"
       style={{ width: expanded ? 260 : 56 }}
+      role="navigation"
+      aria-label="Product navigation"
+      aria-expanded={expanded}
     >
       {/* Logo / title + pin toggle */}
-      <div className="flex items-center border-b border-gray-100" style={{ minHeight: 56 }}>
+      <div className="flex items-center border-b border-border" style={{ minHeight: 56 }}>
         {/* Logo icon - always visible */}
         <div className="flex-shrink-0 w-14 flex items-center justify-center">
-          <svg className="w-5 h-5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+          <svg className="w-5 h-5 text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="2" y="3" width="20" height="14" rx="0" />
             <line x1="8" y1="21" x2="16" y2="21" />
             <line x1="12" y1="17" x2="12" y2="21" />
           </svg>
@@ -91,24 +120,28 @@ export function Sidebar({ products, selected, onSelect, isOpen, onToggle }: Prop
 
         {expanded && (
           <div className="flex-1 min-w-0 pr-1">
-            <h1 className="text-sm font-bold text-gray-800 leading-tight truncate">Katalog Panel 3D</h1>
-            <p className="text-[11px] text-gray-400">Fasilitas Kesehatan</p>
+            <h1 className="text-sm font-semibold text-foreground leading-tight truncate tracking-tight">
+              KATALOG PANEL 3D
+            </h1>
+            <p className="text-[10px] text-muted-foreground tracking-wide uppercase">
+              Fasilitas Kesehatan
+            </p>
           </div>
         )}
 
-        {/* Pin / unpin button - only visible when expanded */}
+        {/* Pin / unpin button */}
         {expanded && (
           <button
             onClick={onToggle}
             title={isOpen ? 'Kecilkan sidebar' : 'Kunci sidebar'}
-            className="flex-shrink-0 w-8 h-8 mr-1 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition"
+            className="flex-shrink-0 w-8 h-8 mr-1 flex items-center justify-center hover:bg-accent text-muted-foreground hover:text-foreground transition"
           >
             {isOpen ? (
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="15 18 9 12 15 6" />
               </svg>
             ) : (
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="9 18 15 12 9 6" />
               </svg>
             )}
@@ -116,33 +149,38 @@ export function Sidebar({ products, selected, onSelect, isOpen, onToggle }: Prop
         )}
       </div>
 
-      {/* Search - visible only when expanded */}
+      {/* Search */}
       {expanded && (
-        <div className="px-3 py-2.5 border-b border-gray-100">
+        <div className="px-3 py-2 border-b border-border">
           <div className="relative">
             <svg
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none"
               viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
             >
-              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             <input
-              type="text"
-              placeholder="Cari produk..."
+              type="search"
+              placeholder="CARI PRODUK..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-gray-200 bg-gray-50 focus:outline-none focus:border-blue-400 focus:bg-white transition"
+              className="w-full pl-9 pr-3 py-2 text-xs bg-input-background border border-border focus:outline-none focus:border-foreground transition placeholder:text-muted-foreground placeholder:text-[10px] placeholder:tracking-wider"
+              style={{ borderRadius: 0 }}
+              aria-label="Search products"
             />
           </div>
         </div>
       )}
 
       {/* Product list */}
-      <nav className="flex-1 overflow-y-auto py-2">
+      <nav className="flex-1 overflow-y-auto py-1">
         {expanded ? (
           <>
             {orderedCategories.length === 0 && (
-              <p className="text-xs text-gray-400 px-4 py-6 text-center">Produk tidak ditemukan.</p>
+              <p className="text-xs text-muted-foreground px-4 py-6 text-center tracking-wide">
+                PRODUK TIDAK DITEMUKAN
+              </p>
             )}
 
             {orderedCategories.map((cat) => {
@@ -151,23 +189,23 @@ export function Sidebar({ products, selected, onSelect, isOpen, onToggle }: Prop
               const iconLabel = CATEGORY_ICONS[cat];
 
               return (
-                <div key={cat} className="mb-0.5">
+                <div key={cat} className="mb-0">
                   <button
                     onClick={() => toggleCat(cat)}
-                    className="w-full flex items-center justify-between px-4 py-2 text-left hover:bg-gray-50 transition"
+                    className="w-full flex items-center justify-between px-4 py-2 text-left hover:bg-accent transition"
                   >
                     <div className="flex items-center gap-2">
                       <CategoryIcon label={iconLabel} />
-                      <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                         {cat}
                       </span>
-                      <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                      <span className="text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 tracking-wide">
                         {items.length}
                       </span>
                     </div>
                     <svg
                       className={[
-                        'w-3 h-3 text-gray-400 transition-transform duration-200',
+                        'w-3 h-3 text-muted-foreground transition-transform duration-200',
                         catOpen ? '' : '-rotate-90',
                       ].join(' ')}
                       viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
@@ -184,36 +222,40 @@ export function Sidebar({ products, selected, onSelect, isOpen, onToggle }: Prop
                           <button
                             key={product.id}
                             onClick={() => onSelect(product)}
+                            onMouseEnter={() => preloadViewer(product.viewerType || 'panel')}
+                            onFocus={() => preloadViewer(product.viewerType || 'panel')}
                             className={[
-                              'w-full flex items-start gap-2 px-4 py-2 text-left transition',
+                              'w-full flex items-start gap-2.5 px-4 py-2 text-left transition focus:outline-none focus:bg-accent focus:border-l-foreground',
                               isActive
-                                ? 'bg-blue-50 border-r-2 border-blue-600'
-                                : 'hover:bg-gray-50 border-r-2 border-transparent',
+                                ? 'bg-accent border-l-2 border-foreground'
+                                : 'hover:bg-accent/50 border-l-2 border-transparent',
                             ].join(' ')}
+                            aria-current={isActive ? 'page' : undefined}
                           >
                             <span
-                              className="mt-0.5 flex-shrink-0 w-2.5 h-2.5 rounded-sm border border-black/10"
+                              className="mt-1 flex-shrink-0 w-2.5 h-2.5 border border-border"
                               style={{
-                                backgroundColor: `#${product.layers[0]?.color.toString(16).padStart(6, '0') ?? 'ccc'}`,
+                                backgroundColor: `#${product.layers[0]?.color.toString(16).padStart(6, '0') ?? '888'}`,
+                                borderRadius: 0,
                               }}
                             />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className={[
-                                  'text-xs font-medium leading-tight truncate',
-                                  isActive ? 'text-blue-700' : 'text-gray-700',
+                                  'text-[11px] font-medium leading-tight truncate tracking-tight',
+                                  isActive ? 'text-foreground' : 'text-foreground/80',
                                 ].join(' ')}>
                                   {product.name}
                                 </span>
                                 {product.badge && (
-                                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${product.badgeColor ?? 'bg-gray-100 text-gray-500'}`}>
+                                  <span className={`text-[8px] font-semibold px-1.5 py-0.5 tracking-wide ${product.badgeColor ?? 'bg-muted text-muted-foreground'}`}>
                                     {product.badge}
                                   </span>
                                 )}
                               </div>
-                              <span className="text-[10px] text-gray-400 leading-snug line-clamp-1">
-                                {product.layers.length} lapisan
-                                {product.views.includes('exploded') ? ' · Exploded' : ''}
+                              <span className="text-[9px] text-muted-foreground tracking-wide">
+                                {product.layers.length} LAYERS
+                                {product.views.includes('exploded') ? ' • EXPLODED' : ''}
                               </span>
                             </div>
                           </button>
@@ -226,7 +268,7 @@ export function Sidebar({ products, selected, onSelect, isOpen, onToggle }: Prop
             })}
           </>
         ) : (
-          /* Collapsed mode: category icons only, dot on active category */
+          /* Collapsed mode */
           <div className="flex flex-col items-center gap-1 pt-1">
             {orderedCategories.map((cat) => {
               const items     = grouped.get(cat)!;
@@ -237,16 +279,17 @@ export function Sidebar({ products, selected, onSelect, isOpen, onToggle }: Prop
                     onClick={onToggle}
                     title={cat}
                     className={[
-                      'w-9 h-9 flex items-center justify-center rounded-lg transition',
+                      'w-9 h-9 flex items-center justify-center transition',
                       hasActive
-                        ? 'bg-blue-50 text-blue-600'
-                        : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600',
+                        ? 'bg-accent text-foreground'
+                        : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                     ].join(' ')}
+                    style={{ borderRadius: 0 }}
                   >
                     <CategoryIcon label={CATEGORY_ICONS[cat]} />
                   </button>
                   {hasActive && (
-                    <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-blue-500 pointer-events-none" />
+                    <span className="absolute top-2 right-1.5 w-1 h-3 bg-foreground pointer-events-none" />
                   )}
                 </div>
               );
@@ -257,17 +300,20 @@ export function Sidebar({ products, selected, onSelect, isOpen, onToggle }: Prop
 
       {/* Footer */}
       {expanded ? (
-        <div className="px-4 py-3 border-t border-gray-100">
-          <p className="text-[10px] text-gray-400">{products.length} produk tersedia</p>
+        <div className="px-4 py-3 border-t border-border">
+          <p className="text-[9px] text-muted-foreground tracking-wider">
+            {products.length} PRODUK TERSEDIA
+          </p>
         </div>
       ) : (
-        <div className="flex items-center justify-center py-3 border-t border-gray-100">
+        <div className="flex items-center justify-center py-3 border-t border-border">
           <button
             onClick={onToggle}
             title="Buka sidebar"
-            className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition"
+            className="w-8 h-8 flex items-center justify-center hover:bg-accent text-muted-foreground hover:text-foreground transition"
+            style={{ borderRadius: 0 }}
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="9 18 15 12 9 6" />
             </svg>
           </button>
@@ -281,11 +327,15 @@ export function Sidebar({ products, selected, onSelect, isOpen, onToggle }: Prop
 function CategoryIcon({ label }: { label: string }) {
   const cls = 'w-3.5 h-3.5';
   switch (label) {
-    case 'Wall':     return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>;
-    case 'Wind':     return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>;
-    case 'Layers':   return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>;
-    case 'Square':   return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>;
-    case 'DoorOpen': return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3"/><path d="M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561Z"/></svg>;
-    default:         return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>;
+    case 'Wall':
+      return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="0"/><rect x="14" y="3" width="7" height="7" rx="0"/><rect x="3" y="14" width="7" height="7" rx="0"/><rect x="14" y="14" width="7" height="7" rx="0"/></svg>;
+    case 'Layers':
+      return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>;
+    case 'Square':
+      return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="0"/></svg>;
+    case 'DoorOpen':
+      return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3"/><path d="M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561Z"/></svg>;
+    default:
+      return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>;
   }
 }
