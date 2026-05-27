@@ -1,7 +1,7 @@
 /**
- * ReturnAirGrilleAssembled3D.tsx — ASSEMBLED VIEW
- * ─────────────────────────────────────────────────────────────
- * Wall Corner Return Air Grille SUS-304 — tampilan terpasang di dinding.
+ * ReturnAirGrilleAssembled3D.tsx - ASSEMBLED VIEW
+ * ------------------------------─
+ * Wall Corner Return Air Grille SUS-304 - tampilan terpasang di dinding.
  *
  * Referensi visual:
  * - Frame outer 600×400×100mm (brushed SS)
@@ -10,7 +10,7 @@
  * - Mounting flange 15mm overhang pada dinding
  * - Wall fragment sebagai konteks pemasangan
  * - 4 baut mounting di sudut flange
- * ─────────────────────────────────────────────────────────────
+ * ------------------------------─
  */
 
 import { useState } from 'react';
@@ -19,18 +19,19 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { Product, CameraPreset } from '../data/products';
 import { applyCameraPreset, downloadPNG, placeAnnotations } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
+import { useHighlightController } from '../hooks/useHighlightController';
 import { ViewerControls } from './ViewerControls';
 
 interface Props { product: Product }
 
-// ─── Dimensi (scene units, 1 unit = 10mm) ───────────────────
+// -─ Dimensi (scene units, 1 unit = 10mm) ---------─
 const FW = 60;         // frame outer width  600mm
 const FH = 40;         // frame outer height 400mm
 const FD = 10;         // frame depth        100mm
 const FB = 2;          // frame border       20mm per side
 
-const FACE_W = FW - 2 * FB;  // 56 — face opening width
-const FACE_H = FH - 2 * FB;  // 36 — face opening height
+const FACE_W = FW - 2 * FB;  // 56 - face opening width
+const FACE_H = FH - 2 * FB;  // 36 - face opening height
 const PANEL_T = 0.3;         // face panel visual thickness
 
 const FLANGE_LIP = 1.5;     // 15mm overhang on wall
@@ -40,11 +41,11 @@ const FILTER_W = FACE_W - 2; // 54
 const FILTER_H = FACE_H - 2; // 34
 const FILTER_T = 2;          // 20mm
 
-const WALL_W = FW + 30;      // 90 — wall fragment width
-const WALL_H = FH + 20;      // 60 — wall fragment height
+const WALL_W = FW + 30;      // 90 - wall fragment width
+const WALL_H = FH + 20;      // 60 - wall fragment height
 const WALL_T = 12;           // 120mm wall panel thickness
 
-// ─── Material factories ──────────────────────────────────────
+// -─ Material factories -------------------
 
 function matSSBrushed() {
   return new THREE.MeshStandardMaterial({
@@ -76,7 +77,7 @@ function matScrew() {
   });
 }
 
-// ─── CanvasTexture for perforated face panel ─────────────────
+// -─ CanvasTexture for perforated face panel --------─
 
 function createPerforationAlphaMap(): THREE.CanvasTexture {
   // 560×360mm real face area → 1120×720px canvas (2px per mm)
@@ -126,7 +127,7 @@ function matPerforatedFace(alphaMap: THREE.CanvasTexture) {
   });
 }
 
-// ─── Geometry helpers ────────────────────────────────────────
+// -─ Geometry helpers --------------------
 
 function addBox(
   parent: THREE.Object3D, w: number, h: number, d: number,
@@ -164,7 +165,7 @@ function addEdges(parent: THREE.Object3D, geo: THREE.BufferGeometry, pos: THREE.
   parent.add(edges);
 }
 
-// ─── Build scene ─────────────────────────────────────────────
+// -─ Build scene ----------------------─
 
 function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   // 0. PBR Environment
@@ -174,18 +175,19 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   scene.background = new THREE.Color(0xf0f4f7);
   pmrem.dispose();
 
-  // 1. Wall fragment (context) — front face at Z=0, extends backward
+  // 1. Wall fragment (context) - front face at Z=0, extends backward
   buildWallFragment(scene);
 
-  // 2. Frame housing — sits inside wall opening
+  // 2. Frame housing - sits inside wall opening
   buildFrameHousing(scene);
 
-  // 3. Mounting flange — thin lip at wall surface
+  // 3. Mounting flange - thin lip at wall surface
   buildMountingFlange(scene);
 
-  // 4. Filter — behind face panel
+  // 4. Filter - behind face panel
   const filterZ = -(PANEL_T + 0.5 + FILTER_T / 2);
-  addBox(scene, FILTER_W, FILTER_H, FILTER_T, 0, FH / 2, filterZ, matFilter());
+  const filterMesh = addBox(scene, FILTER_W, FILTER_H, FILTER_T, 0, FH / 2, filterZ, matFilter());
+  filterMesh.userData.partId = 'filter';
 
   // 5. Perforated face panel
   buildPerforatedFacePanel(scene);
@@ -193,29 +195,29 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   // 6. Mounting screws (4 corners)
   buildMountingScrews(scene);
 
-  // 7. Annotations
+  // 7. Annotations (partIds wire labels to mesh groups for the highlight controller)
   placeAnnotations(
     scene,
     [
-      { anchor: new THREE.Vector3(FW / 2 - 1, FH / 2, -FD / 2),
+      { partId: 'frame',   anchor: new THREE.Vector3(FW / 2 - 1, FH / 2, -FD / 2),
         label: 'Frame SUS 304 (Brushed)' },
-      { anchor: new THREE.Vector3(0, FH / 2, PANEL_T + 0.5),
+      { partId: 'panel',   anchor: new THREE.Vector3(0, FH / 2, PANEL_T + 0.5),
         label: 'Panel Perforated SUS 304' },
-      { anchor: new THREE.Vector3(0, FH / 2, filterZ),
+      { partId: 'filter',  anchor: new THREE.Vector3(0, FH / 2, filterZ),
         label: 'Filter G4 Pre-Filter' },
-      { anchor: new THREE.Vector3(FW / 2 + FLANGE_LIP * 0.6, FH - 3, 0),
+      { partId: 'flange',  anchor: new THREE.Vector3(FW / 2 + FLANGE_LIP * 0.6, FH - 3, 0),
         label: 'Mounting Flange 15 mm' },
-      { anchor: new THREE.Vector3(-WALL_W / 2 + 5, FH / 2, -WALL_T / 2),
+      { partId: 'wall',    anchor: new THREE.Vector3(-WALL_W / 2 + 5, FH / 2, -WALL_T / 2),
         label: 'Dinding Ruang OR' },
-      { anchor: new THREE.Vector3(FW / 2 + FLANGE_LIP * 0.5, -FLANGE_LIP * 0.5, FLANGE_T),
-        label: 'Baut Mounting ×4' },
+      { partId: 'screws',  anchor: new THREE.Vector3(FW / 2 + FLANGE_LIP * 0.5, -FLANGE_LIP * 0.5, FLANGE_T),
+        label: 'Baut Mounting x4' },
     ],
     FW / 2 + 45,
     [-15, FH + 15],
   );
 }
 
-// ─── Geometry builders ───────────────────────────────────────
+// -─ Geometry builders -------------------─
 
 function buildWallFragment(scene: THREE.Scene) {
   const wallShape = new THREE.Shape();
@@ -242,6 +244,7 @@ function buildWallFragment(scene: THREE.Scene) {
 
   const wallMesh = new THREE.Mesh(wallGeo, matWall());
   wallMesh.receiveShadow = true;
+  wallMesh.userData.partId = 'wall';
   scene.add(wallMesh);
 
   const edges = new THREE.LineSegments(
@@ -277,6 +280,7 @@ function buildFrameHousing(scene: THREE.Scene) {
   const frameMesh = new THREE.Mesh(frameGeo, matSSBrushed());
   frameMesh.castShadow = true;
   frameMesh.receiveShadow = true;
+  frameMesh.userData.partId = 'frame';
   scene.add(frameMesh);
 
   const edges = new THREE.LineSegments(
@@ -285,7 +289,7 @@ function buildFrameHousing(scene: THREE.Scene) {
   );
   scene.add(edges);
 
-  // Back panel (duct connection plate) — closes the rear of the frame housing
+  // Back panel (duct connection plate) - closes the rear of the frame housing
   addBox(scene, FW, FH, 0.3, 0, FH / 2, -FD + 0.15, matSSBrushed());
 }
 
@@ -317,6 +321,7 @@ function buildMountingFlange(scene: THREE.Scene) {
 
   const flangeMesh = new THREE.Mesh(flangeGeo, matFlange());
   flangeMesh.castShadow = true;
+  flangeMesh.userData.partId = 'flange';
   scene.add(flangeMesh);
 }
 
@@ -328,6 +333,7 @@ function buildPerforatedFacePanel(scene: THREE.Scene) {
   const faceMesh = new THREE.Mesh(faceGeo, faceMat);
   faceMesh.position.set(0, FH / 2, PANEL_T / 2);
   faceMesh.castShadow = true;
+  faceMesh.userData.partId = 'panel';
   scene.add(faceMesh);
 
   // Edge highlight
@@ -335,6 +341,9 @@ function buildPerforatedFacePanel(scene: THREE.Scene) {
 }
 
 function buildMountingScrews(scene: THREE.Scene) {
+  const group = new THREE.Group();
+  group.userData.partId = 'screws';
+  scene.add(group);
   const sm = matScrew();
   const positions: [number, number][] = [
     [-(FW / 2 + FLANGE_LIP * 0.5), -(FLANGE_LIP * 0.5)],
@@ -343,22 +352,21 @@ function buildMountingScrews(scene: THREE.Scene) {
     [ (FW / 2 + FLANGE_LIP * 0.5),  FH + FLANGE_LIP * 0.5],
   ];
   for (const [x, y] of positions) {
-    // Screw head (flat cylinder)
-    addCyl(scene, 0.5, 0.5, 0.3, 12, x, y, FLANGE_T + 0.15, sm, Math.PI / 2, 0);
-    // Phillips cross slot
-    addBox(scene, 0.6, 0.08, 0.1, x, y, FLANGE_T + 0.32,
+    addCyl(group, 0.5, 0.5, 0.3, 12, x, y, FLANGE_T + 0.15, sm, Math.PI / 2, 0);
+    addBox(group, 0.6, 0.08, 0.1, x, y, FLANGE_T + 0.32,
       new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.5, metalness: 0.3 }));
-    addBox(scene, 0.08, 0.6, 0.1, x, y, FLANGE_T + 0.32,
+    addBox(group, 0.08, 0.6, 0.1, x, y, FLANGE_T + 0.32,
       new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.5, metalness: 0.3 }));
   }
 }
 
-// ─── React component ─────────────────────────────────────────
+// -─ React component --------------------─
 
 export function ReturnAirGrilleAssembled3D({ product }: Props) {
   const [activePreset, setActivePreset] = useState<string>(
     product.cameraPresets[0]?.name ?? '',
   );
+  const { attachHighlight } = useHighlightController();
 
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: {
@@ -370,6 +378,7 @@ export function ReturnAirGrilleAssembled3D({ product }: Props) {
       buildScene(refs.scene, refs.renderer);
       const p = product.cameraPresets[0];
       applyCameraPreset(refs, p.position, p.target);
+      attachHighlight(refs);
     },
     deps: [product],
   });

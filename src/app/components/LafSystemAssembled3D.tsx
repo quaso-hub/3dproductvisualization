@@ -1,7 +1,7 @@
 /**
- * LafSystemAssembled3D.tsx — ASSEMBLED VIEW
- * ─────────────────────────────────────────────────────────────
- * Laminar Air Flow (LAF) Ceiling System — fully assembled unit.
+ * LafSystemAssembled3D.tsx - ASSEMBLED VIEW
+ * ------------------------------─
+ * Laminar Air Flow (LAF) Ceiling System - fully assembled unit.
  *
  * Ceiling-mounted HVAC unit viewed from BELOW (worm's eye).
  * Y=0 = bottom face of face diffuser (visible from OR room).
@@ -17,7 +17,7 @@
  *   7. Plenum box (4 walls + top plate)
  *   8. Duct collar on top
  *   9. Suspension rods × 4
- * ─────────────────────────────────────────────────────────────
+ * ------------------------------─
  */
 
 import { useState } from 'react';
@@ -26,11 +26,12 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { Product, CameraPreset } from '../data/products';
 import { applyCameraPreset, downloadPNG, placeAnnotations } from '../lib/three-scene';
 import { useThreeScene } from '../hooks/useThreeScene';
+import { useHighlightController } from '../hooks/useHighlightController';
 import { ViewerControls } from './ViewerControls';
 
 interface Props { product: Product }
 
-// ─── Dimensions (scene units, 1 unit = 10mm) ──────────────────
+// -─ Dimensions (scene units, 1 unit = 10mm) ---------
 const LAF_W = 120;        // 1200mm width (X axis)
 const LAF_L = 180;        // 1800mm length (Z axis)
 
@@ -72,7 +73,7 @@ const HEPA_FRAME_W = 2.5; // 25mm aluminium frame per side
 const HEPA_UNIT_W = 61;   // 610mm filter width
 const HEPA_UNIT_L = 122;  // 1220mm filter length (but we use 3 rows layout)
 
-// ─── Material factories ────────────────────────────────────────
+// -─ Material factories --------------------
 
 function matPowderWhite() {
   return new THREE.MeshStandardMaterial({
@@ -120,7 +121,7 @@ function matLEDWarm() {
   });
 }
 
-// ─── Tileable perforated alphaMap (staggered hex) ──────────────
+// -─ Tileable perforated alphaMap (staggered hex) -------
 
 function createLAFPerforationAlphaMap(): THREE.CanvasTexture {
   // Scale: 4px per mm
@@ -191,7 +192,7 @@ function matPerforatedFace(alphaMap: THREE.CanvasTexture, pw: number, pl: number
   return mat;
 }
 
-// ─── Geometry helpers ──────────────────────────────────────────
+// -─ Geometry helpers ---------------------
 
 function addBox(
   parent: THREE.Object3D, w: number, h: number, d: number,
@@ -217,7 +218,7 @@ function addCyl(
   return mesh;
 }
 
-// ─── Build scene ───────────────────────────────────────────────
+// -─ Build scene -----------------------─
 
 function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   // 0. PBR Environment
@@ -237,131 +238,130 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
 
   const faceCY = Y_FACE_BOT + FACE_T / 2; // center Y of face slab
 
-  // ─── 1. Face diffuser frame perimeter (aluminium) ───────────
+  // -─ 1. Face diffuser frame perimeter (aluminium) -----─
   const frameH = FACE_T + 4; // frame extends 40mm above face
   const frameCY = Y_FACE_BOT + frameH / 2;
+  const frameGroup = new THREE.Group();
+  frameGroup.userData.partId = 'frame';
+  scene.add(frameGroup);
 
-  // Front bar (−Z side)
-  addBox(scene, LAF_W, frameH, FRAME_W, 0, frameCY, -LAF_L / 2 + FRAME_W / 2, alumMat);
+  // Front bar (-Z side)
+  addBox(frameGroup, LAF_W, frameH, FRAME_W, 0, frameCY, -LAF_L / 2 + FRAME_W / 2, alumMat);
   // Back bar (+Z side)
-  addBox(scene, LAF_W, frameH, FRAME_W, 0, frameCY, LAF_L / 2 - FRAME_W / 2, alumMat);
-  // Left bar (−X side)
-  addBox(scene, FRAME_W, frameH, LAF_L - 2 * FRAME_W, -LAF_W / 2 + FRAME_W / 2, frameCY, 0, alumMat);
+  addBox(frameGroup, LAF_W, frameH, FRAME_W, 0, frameCY, LAF_L / 2 - FRAME_W / 2, alumMat);
+  // Left bar (-X side)
+  addBox(frameGroup, FRAME_W, frameH, LAF_L - 2 * FRAME_W, -LAF_W / 2 + FRAME_W / 2, frameCY, 0, alumMat);
   // Right bar (+X side)
-  addBox(scene, FRAME_W, frameH, LAF_L - 2 * FRAME_W, LAF_W / 2 - FRAME_W / 2, frameCY, 0, alumMat);
+  addBox(frameGroup, FRAME_W, frameH, LAF_L - 2 * FRAME_W, LAF_W / 2 - FRAME_W / 2, frameCY, 0, alumMat);
 
-  // ─── 2. Six face sub-panels (perforated) ────────────────────
+  // -─ 2. Six face sub-panels (perforated) ----------
   const baseAlphaMap = createLAFPerforationAlphaMap();
+  const faceGroup = new THREE.Group();
+  faceGroup.userData.partId = 'face';
+  scene.add(faceGroup);
 
-  // Grid positions: 2 cols (X) × 3 rows (Z)
-  // col 0: x = -(DIVIDER_W/2 + PANEL_W/2)
-  // col 1: x = +(DIVIDER_W/2 + PANEL_W/2)
-  // row 0: z = -(DIVIDER_W + PANEL_L) starting from center area
   const colXs = [
     -(DIVIDER_W / 2 + PANEL_W / 2),
     (DIVIDER_W / 2 + PANEL_W / 2),
   ];
   const rowZs = [
-    -(DIVIDER_W + PANEL_L),        // row 0 center Z
-    0,                              // row 1 center Z
-    (DIVIDER_W + PANEL_L),         // row 2 center Z
+    -(DIVIDER_W + PANEL_L),
+    0,
+    (DIVIDER_W + PANEL_L),
   ];
 
   for (const cx of colXs) {
     for (const cz of rowZs) {
       const alpha = baseAlphaMap.clone();
       const perfMat = matPerforatedFace(alpha, PANEL_W, PANEL_L);
-      addBox(scene, PANEL_W, FACE_T, PANEL_L, cx, faceCY, cz, perfMat);
+      addBox(faceGroup, PANEL_W, FACE_T, PANEL_L, cx, faceCY, cz, perfMat);
     }
   }
 
-  // ─── 3. Divider bars ────────────────────────────────────────
-  // Vertical divider (center X, full inner length)
-  addBox(scene, DIVIDER_W, FACE_T + 1, INNER_L, 0, faceCY + 0.5, 0, alumMat);
-  // Horizontal divider 1 (between row 0 and row 1)
-  addBox(scene, INNER_W, FACE_T + 1, DIVIDER_W, 0, faceCY + 0.5, -(PANEL_L / 2 + DIVIDER_W / 2), alumMat);
-  // Horizontal divider 2 (between row 1 and row 2)
-  addBox(scene, INNER_W, FACE_T + 1, DIVIDER_W, 0, faceCY + 0.5, (PANEL_L / 2 + DIVIDER_W / 2), alumMat);
+  // -─ 3. Divider bars (part of frame visually) ----------
+  addBox(frameGroup, DIVIDER_W, FACE_T + 1, INNER_L, 0, faceCY + 0.5, 0, alumMat);
+  addBox(frameGroup, INNER_W, FACE_T + 1, DIVIDER_W, 0, faceCY + 0.5, -(PANEL_L / 2 + DIVIDER_W / 2), alumMat);
+  addBox(frameGroup, INNER_W, FACE_T + 1, DIVIDER_W, 0, faceCY + 0.5, (PANEL_L / 2 + DIVIDER_W / 2), alumMat);
 
-  // ─── 4. Central pass-through opening ────────────────────────
-  // Trim ring around the opening (4 thin aluminium bars)
-  const trimW = 1.5; // 15mm trim width
-  const trimH = 2;   // 20mm trim height
+  // -─ 4. Central pass-through opening ------------
+  const openingGroup = new THREE.Group();
+  openingGroup.userData.partId = 'opening';
+  scene.add(openingGroup);
+  const trimW = 1.5;
+  const trimH = 2;
   const trimCY = Y_FACE_BOT + trimH / 2;
   const halfOp = OPENING / 2;
 
-  addBox(scene, OPENING + 2 * trimW, trimH, trimW, 0, trimCY, -halfOp - trimW / 2, alumMat);
-  addBox(scene, OPENING + 2 * trimW, trimH, trimW, 0, trimCY, halfOp + trimW / 2, alumMat);
-  addBox(scene, trimW, trimH, OPENING, -halfOp - trimW / 2, trimCY, 0, alumMat);
-  addBox(scene, trimW, trimH, OPENING, halfOp + trimW / 2, trimCY, 0, alumMat);
+  addBox(openingGroup, OPENING + 2 * trimW, trimH, trimW, 0, trimCY, -halfOp - trimW / 2, alumMat);
+  addBox(openingGroup, OPENING + 2 * trimW, trimH, trimW, 0, trimCY, halfOp + trimW / 2, alumMat);
+  addBox(openingGroup, trimW, trimH, OPENING, -halfOp - trimW / 2, trimCY, 0, alumMat);
+  addBox(openingGroup, trimW, trimH, OPENING, halfOp + trimW / 2, trimCY, 0, alumMat);
 
-  // Rubber grommet (dark ring inside the opening)
   const grommetW = 0.8;
-  addBox(scene, OPENING, grommetW, grommetW, 0, Y_FACE_BOT + grommetW / 2, -halfOp, rubberMat);
-  addBox(scene, OPENING, grommetW, grommetW, 0, Y_FACE_BOT + grommetW / 2, halfOp, rubberMat);
-  addBox(scene, grommetW, grommetW, OPENING - 2 * grommetW, -halfOp, Y_FACE_BOT + grommetW / 2, 0, rubberMat);
-  addBox(scene, grommetW, grommetW, OPENING - 2 * grommetW, halfOp, Y_FACE_BOT + grommetW / 2, 0, rubberMat);
+  addBox(openingGroup, OPENING, grommetW, grommetW, 0, Y_FACE_BOT + grommetW / 2, -halfOp, rubberMat);
+  addBox(openingGroup, OPENING, grommetW, grommetW, 0, Y_FACE_BOT + grommetW / 2, halfOp, rubberMat);
+  addBox(openingGroup, grommetW, grommetW, OPENING - 2 * grommetW, -halfOp, Y_FACE_BOT + grommetW / 2, 0, rubberMat);
+  addBox(openingGroup, grommetW, grommetW, OPENING - 2 * grommetW, halfOp, Y_FACE_BOT + grommetW / 2, 0, rubberMat);
 
-  // ─── 5. LED strip (emissive, inside frame perimeter) ────────
-  const ledY = Y_FACE_BOT + 0.15; // just below frame, facing down
+  // -─ 5. LED strip --------------
+  const ledGroup = new THREE.Group();
+  ledGroup.userData.partId = 'led';
+  scene.add(ledGroup);
+  const ledY = Y_FACE_BOT + 0.15;
   const ledInset = FRAME_W - 0.5;
-  // Front
-  addBox(scene, LAF_W - 2 * ledInset, 0.3, 0.5, 0, ledY, -LAF_L / 2 + ledInset, ledMat);
-  // Back
-  addBox(scene, LAF_W - 2 * ledInset, 0.3, 0.5, 0, ledY, LAF_L / 2 - ledInset, ledMat);
-  // Left
-  addBox(scene, 0.5, 0.3, LAF_L - 2 * ledInset, -LAF_W / 2 + ledInset, ledY, 0, ledMat);
-  // Right
-  addBox(scene, 0.5, 0.3, LAF_L - 2 * ledInset, LAF_W / 2 - ledInset, ledY, 0, ledMat);
+  addBox(ledGroup, LAF_W - 2 * ledInset, 0.3, 0.5, 0, ledY, -LAF_L / 2 + ledInset, ledMat);
+  addBox(ledGroup, LAF_W - 2 * ledInset, 0.3, 0.5, 0, ledY, LAF_L / 2 - ledInset, ledMat);
+  addBox(ledGroup, 0.5, 0.3, LAF_L - 2 * ledInset, -LAF_W / 2 + ledInset, ledY, 0, ledMat);
+  addBox(ledGroup, 0.5, 0.3, LAF_L - 2 * ledInset, LAF_W / 2 - ledInset, ledY, 0, ledMat);
 
-  // ─── 6. HEPA filter modules × 6 ────────────────────────────
-  // Each HEPA: media block + aluminium frame bars
-  const hepaMediaW = PANEL_W - 2; // slightly smaller than sub-panel
+  // -─ 6. HEPA filter modules x 6 --------------
+  const hepaGroup = new THREE.Group();
+  hepaGroup.userData.partId = 'hepa';
+  scene.add(hepaGroup);
+  const hepaMediaW = PANEL_W - 2;
   const hepaMediaL = PANEL_L - 2;
   const hepaCY = Y_HEPA_BOT + HEPA_H / 2;
 
   for (const cx of colXs) {
     for (const cz of rowZs) {
-      // Media block (cream fibrous)
-      addBox(scene, hepaMediaW, HEPA_H, hepaMediaL, cx, hepaCY, cz, hepaMat);
-
-      // Aluminium frame bars around each filter module
+      addBox(hepaGroup, hepaMediaW, HEPA_H, hepaMediaL, cx, hepaCY, cz, hepaMat);
       const fW = HEPA_FRAME_W;
-      // Front & back frame bars
-      addBox(scene, hepaMediaW + 2 * fW, HEPA_H, fW,
+      addBox(hepaGroup, hepaMediaW + 2 * fW, HEPA_H, fW,
         cx, hepaCY, cz - hepaMediaL / 2 - fW / 2, alumMat);
-      addBox(scene, hepaMediaW + 2 * fW, HEPA_H, fW,
+      addBox(hepaGroup, hepaMediaW + 2 * fW, HEPA_H, fW,
         cx, hepaCY, cz + hepaMediaL / 2 + fW / 2, alumMat);
-      // Left & right frame bars
-      addBox(scene, fW, HEPA_H, hepaMediaL,
+      addBox(hepaGroup, fW, HEPA_H, hepaMediaL,
         cx - hepaMediaW / 2 - fW / 2, hepaCY, cz, alumMat);
-      addBox(scene, fW, HEPA_H, hepaMediaL,
+      addBox(hepaGroup, fW, HEPA_H, hepaMediaL,
         cx + hepaMediaW / 2 + fW / 2, hepaCY, cz, alumMat);
     }
   }
 
-  // ─── 7. Plenum box (4 walls + top plate) ────────────────────
+  // -─ 7. Plenum box ----------
+  const plenumGroup = new THREE.Group();
+  plenumGroup.userData.partId = 'plenum';
+  scene.add(plenumGroup);
   const plenumCY = Y_PLENUM_BOT + PLENUM_H / 2;
 
-  // Front wall
-  addBox(scene, LAF_W, PLENUM_H, PLENUM_T, 0, plenumCY, -LAF_L / 2 + PLENUM_T / 2, powderMat);
-  // Back wall
-  addBox(scene, LAF_W, PLENUM_H, PLENUM_T, 0, plenumCY, LAF_L / 2 - PLENUM_T / 2, powderMat);
-  // Left wall
-  addBox(scene, PLENUM_T, PLENUM_H, LAF_L - 2 * PLENUM_T, -LAF_W / 2 + PLENUM_T / 2, plenumCY, 0, powderMat);
-  // Right wall
-  addBox(scene, PLENUM_T, PLENUM_H, LAF_L - 2 * PLENUM_T, LAF_W / 2 - PLENUM_T / 2, plenumCY, 0, powderMat);
-  // Top plate
-  addBox(scene, LAF_W, PLENUM_T, LAF_L, 0, Y_PLENUM_TOP - PLENUM_T / 2, 0, powderMat);
+  addBox(plenumGroup, LAF_W, PLENUM_H, PLENUM_T, 0, plenumCY, -LAF_L / 2 + PLENUM_T / 2, powderMat);
+  addBox(plenumGroup, LAF_W, PLENUM_H, PLENUM_T, 0, plenumCY, LAF_L / 2 - PLENUM_T / 2, powderMat);
+  addBox(plenumGroup, PLENUM_T, PLENUM_H, LAF_L - 2 * PLENUM_T, -LAF_W / 2 + PLENUM_T / 2, plenumCY, 0, powderMat);
+  addBox(plenumGroup, PLENUM_T, PLENUM_H, LAF_L - 2 * PLENUM_T, LAF_W / 2 - PLENUM_T / 2, plenumCY, 0, powderMat);
+  addBox(plenumGroup, LAF_W, PLENUM_T, LAF_L, 0, Y_PLENUM_TOP - PLENUM_T / 2, 0, powderMat);
 
-  // ─── 8. Duct collar on top center ──────────────────────────
+  // -─ 8. Duct collar -------------
+  const collarGroup = new THREE.Group();
+  collarGroup.userData.partId = 'collar';
+  scene.add(collarGroup);
   const collarY = Y_PLENUM_TOP + COLLAR_H / 2;
-  addCyl(scene, COLLAR_R, COLLAR_R, COLLAR_H, 32, 0, collarY, 0, collarMat);
-  // Collar rim (slight overhang)
-  addCyl(scene, COLLAR_R + 1, COLLAR_R + 1, 0.5, 32, 0, Y_PLENUM_TOP + 0.25, 0, collarMat);
+  addCyl(collarGroup, COLLAR_R, COLLAR_R, COLLAR_H, 32, 0, collarY, 0, collarMat);
+  addCyl(collarGroup, COLLAR_R + 1, COLLAR_R + 1, 0.5, 32, 0, Y_PLENUM_TOP + 0.25, 0, collarMat);
 
-  // ─── 9. Suspension rods × 4 ────────────────────────────────
-  const rodInset = 10; // 100mm from edge
+  // -─ 9. Suspension rods x 4 ----------------
+  const rodsGroup = new THREE.Group();
+  rodsGroup.userData.partId = 'rods';
+  scene.add(rodsGroup);
+  const rodInset = 10;
   const rodY = Y_PLENUM_TOP + ROD_H / 2;
   const rodPositions: [number, number][] = [
     [-LAF_W / 2 + rodInset, -LAF_L / 2 + rodInset],
@@ -371,33 +371,31 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   ];
 
   for (const [rx, rz] of rodPositions) {
-    addCyl(scene, ROD_R, ROD_R, ROD_H, 12, rx, rodY, rz, rodMat);
-    // Nut + washer at top
-    addCyl(scene, ROD_R * 2.5, ROD_R * 2.5, 0.8, 6, rx, rodY + ROD_H / 2 + 0.4, rz, rodMat);
-    addCyl(scene, ROD_R * 3, ROD_R * 3, 0.2, 16, rx, rodY + ROD_H / 2 - 0.1, rz, rodMat);
-    // Bracket at plenum penetration
-    addBox(scene, ROD_R * 5, 1.5, ROD_R * 5, rx, Y_PLENUM_TOP + 0.75, rz, alumMat);
+    addCyl(rodsGroup, ROD_R, ROD_R, ROD_H, 12, rx, rodY, rz, rodMat);
+    addCyl(rodsGroup, ROD_R * 2.5, ROD_R * 2.5, 0.8, 6, rx, rodY + ROD_H / 2 + 0.4, rz, rodMat);
+    addCyl(rodsGroup, ROD_R * 3, ROD_R * 3, 0.2, 16, rx, rodY + ROD_H / 2 - 0.1, rz, rodMat);
+    addBox(rodsGroup, ROD_R * 5, 1.5, ROD_R * 5, rx, Y_PLENUM_TOP + 0.75, rz, alumMat);
   }
 
-  // ─── Annotations ─────────────────────────────────────────────
+  // -─ Annotations ----------------------─
   placeAnnotations(
     scene,
     [
-      { anchor: new THREE.Vector3(0, Y_FACE_BOT - 1, 0),
+      { partId: 'face',    anchor: new THREE.Vector3(0, Y_FACE_BOT - 1, 0),
         label: 'Face Diffuser Perforated' },
-      { anchor: new THREE.Vector3(LAF_W / 2 - FRAME_W / 2, faceCY, -LAF_L / 2 + FRAME_W / 2),
+      { partId: 'frame',   anchor: new THREE.Vector3(LAF_W / 2 - FRAME_W / 2, faceCY, -LAF_L / 2 + FRAME_W / 2),
         label: 'Frame Aluminium Anodized' },
-      { anchor: new THREE.Vector3(colXs[1], hepaCY, rowZs[0]),
-        label: 'HEPA Filter H14 × 6 Modul' },
-      { anchor: new THREE.Vector3(LAF_W / 2, plenumCY, 0),
+      { partId: 'hepa',    anchor: new THREE.Vector3(colXs[1], hepaCY, rowZs[0]),
+        label: 'HEPA Filter H14 x 6 Modul' },
+      { partId: 'plenum',  anchor: new THREE.Vector3(LAF_W / 2, plenumCY, 0),
         label: 'Plenum Box Galv. Steel' },
-      { anchor: new THREE.Vector3(0, collarY, 0),
-        label: 'Duct Inlet Collar ⌀350 mm' },
-      { anchor: new THREE.Vector3(rodPositions[1][0], rodY + ROD_H / 2, rodPositions[1][1]),
-        label: 'Suspension Rod M8 × 4' },
-      { anchor: new THREE.Vector3(0, Y_FACE_BOT, 0),
+      { partId: 'collar',  anchor: new THREE.Vector3(0, collarY, 0),
+        label: 'Duct Inlet Collar 350 mm' },
+      { partId: 'rods',    anchor: new THREE.Vector3(rodPositions[1][0], rodY + ROD_H / 2, rodPositions[1][1]),
+        label: 'Suspension Rod M8 x 4' },
+      { partId: 'opening', anchor: new THREE.Vector3(0, Y_FACE_BOT, 0),
         label: 'Pass-Through Opening 200 mm' },
-      { anchor: new THREE.Vector3(-LAF_W / 2 + ledInset, ledY, 0),
+      { partId: 'led',     anchor: new THREE.Vector3(-LAF_W / 2 + ledInset, ledY, 0),
         label: 'LED Strip Warm White' },
     ],
     LAF_W / 2 + 50,
@@ -405,13 +403,14 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   );
 }
 
-// ─── React component ───────────────────────────────────────────
+// -─ React component ---------------------─
 
 export function LafSystemAssembled3D({ product }: Props) {
   const firstPreset = product.cameraPresets[0];
   const [activePreset, setActivePreset] = useState<string>(
     firstPreset?.name ?? '',
   );
+  const { attachHighlight } = useHighlightController();
 
   const { mountRef, refsRef } = useThreeScene({
     sceneOptions: {
@@ -422,6 +421,7 @@ export function LafSystemAssembled3D({ product }: Props) {
     onInit: (refs) => {
       buildScene(refs.scene, refs.renderer);
       if (firstPreset) applyCameraPreset(refs, firstPreset.position, firstPreset.target);
+      attachHighlight(refs);
     },
     deps: [product],
   });
