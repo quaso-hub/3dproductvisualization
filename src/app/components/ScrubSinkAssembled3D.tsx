@@ -187,151 +187,81 @@ function addMeshGroup(scene: THREE.Object3D, geos: THREE.BufferGeometry[], mat: 
 // ── Sculpted basin via Lathe profile + Extrude ─────────────────
 
 /**
- * Sculpted basin: rebated rim (ekstrude) + sloped floor (vertex-displaced plane) + chrome drain ring.
- * Bukan 4 box dinding lagi — single watertight extrude untuk rim,
- * dengan plane untuk floor slope.
+ * Basin: walls + floor integral dengan countertop.
+ * Rim TIDAK dibuat terpisah — countertop hole edge sudah jadi rim.
+ * Hanya perlu: inner walls (4 sisi) + sloped floor + drain ring.
  */
 function buildSculptedBasin(scene: THREE.Object3D, cx: number): void {
-  // BUGFIX 2026-05-25: previously rim was 56×41 but countertop hole was 60×45,
-  // leaving a 2-unit dark gap around every basin (visible "kapal pecah" effect).
-  // Now rim outer = countertop hole size (60×45) exactly, with bevel filling
-  // the seam so the basin reads as integral with the countertop slab.
-  //
-  // RESEARCH 2026-05-25: basin depth bumped from 200mm to 250mm per
-  // docs/research/2026-05-25-scrub-sink-references.md Q2. Every real
-  // reference (Avante 267mm, Belimed/Skytron ~250mm, Dolson ~250mm) is at
-  // or above 250mm to allow elbow-deep scrubbing. 200mm was too shallow.
-  const bw = 60;     // matches countertop holeBasin width (was 56)
-  const bd = 45;     // matches countertop holeBasin depth (was 41)
-  const bh = 25;     // 250mm depth (was 22 = 220mm). Real spec: 250-280mm.
-  const baseY = Y_CT_TOP - bh;
+  const bw = 60;
+  const bd = 45;
+  const bh = 25;     // 250mm depth
+  const baseY = Y_CT_TOP - bh;  // 55
 
-  // Rim profile: rebated cross-section (cove curve into basin)
-  const rimShape = new THREE.Shape();
-  // Outer top rim: rectangular outline
-  rimShape.moveTo(-bw / 2, -bd / 2);
-  rimShape.lineTo(bw / 2, -bd / 2);
-  rimShape.lineTo(bw / 2, bd / 2);
-  rimShape.lineTo(-bw / 2, bd / 2);
-  rimShape.lineTo(-bw / 2, -bd / 2);
-  // Hole for basin interior
-  const innerHole = new THREE.Path();
-  const innerR = 3.5; // coved corner radius
-  const ix0 = -bw / 2 + 1.5;
-  const ix1 = bw / 2 - 1.5;
-  const iz0 = -bd / 2 + 1.5;
-  const iz1 = bd / 2 - 1.5;
-  innerHole.moveTo(ix0 + innerR, iz0);
-  innerHole.lineTo(ix1 - innerR, iz0);
-  innerHole.quadraticCurveTo(ix1, iz0, ix1, iz0 + innerR);
-  innerHole.lineTo(ix1, iz1 - innerR);
-  innerHole.quadraticCurveTo(ix1, iz1, ix1 - innerR, iz1);
-  innerHole.lineTo(ix0 + innerR, iz1);
-  innerHole.quadraticCurveTo(ix0, iz1, ix0, iz1 - innerR);
-  innerHole.lineTo(ix0, iz0 + innerR);
-  innerHole.quadraticCurveTo(ix0, iz0, ix0 + innerR, iz0);
-  rimShape.holes.push(innerHole);
+  // Basin inner dimensions (1.5u wall thickness each side)
+  const iw = bw - 3;   // 57
+  const id = bd - 3;   // 42
 
-  // Extrude rim with bevel (gives rounded entry into basin)
-  const rimGeo = new THREE.ExtrudeGeometry(rimShape, {
-    depth: 1.5,
-    bevelEnabled: true,
-    bevelThickness: 0.4,
-    bevelSize: 0.4,
-    bevelSegments: 4,
-    curveSegments: 8,
-  });
-  rimGeo.rotateX(-Math.PI / 2);
-  const rim = new THREE.Mesh(rimGeo, matBasinInterior());
-  rim.position.set(cx, Y_CT_TOP, -7.5);
-  rim.castShadow = true;
-  rim.receiveShadow = true;
-  scene.add(rim);
+  // 4 inner walls as individual boxes — simple, no extrude complexity
+  const wallMat = matBasinInterior();
 
-  // Inner walls extrude (4 walls as one, double-sided)
-  const innerWidth = ix1 - ix0;
-  const innerDepth = iz1 - iz0;
-  const wallShape = new THREE.Shape();
-  wallShape.moveTo(-innerWidth / 2, -innerDepth / 2);
-  wallShape.lineTo(innerWidth / 2, -innerDepth / 2);
-  wallShape.lineTo(innerWidth / 2, innerDepth / 2);
-  wallShape.lineTo(-innerWidth / 2, innerDepth / 2);
-  wallShape.lineTo(-innerWidth / 2, -innerDepth / 2);
-  // Hole inside (very slightly smaller — creates wall thickness illusion)
-  const wallHole = new THREE.Path();
-  const wallT = 0.6;
-  wallHole.moveTo(-innerWidth / 2 + wallT, -innerDepth / 2 + wallT);
-  wallHole.lineTo(innerWidth / 2 - wallT, -innerDepth / 2 + wallT);
-  wallHole.lineTo(innerWidth / 2 - wallT, innerDepth / 2 - wallT);
-  wallHole.lineTo(-innerWidth / 2 + wallT, innerDepth / 2 - wallT);
-  wallHole.lineTo(-innerWidth / 2 + wallT, -innerDepth / 2 + wallT);
-  wallShape.holes.push(wallHole);
-  const wallGeo = new THREE.ExtrudeGeometry(wallShape, {
-    depth: bh,
-    bevelEnabled: false,
-  });
-  wallGeo.rotateX(Math.PI / 2);
-  const walls = new THREE.Mesh(wallGeo, matBasinInterior());
-  walls.position.set(cx, Y_CT_TOP, -7.5);
-  walls.castShadow = true;
-  walls.receiveShadow = true;
-  scene.add(walls);
+  // Front wall (toward user, +Z side)
+  const fwMesh = new THREE.Mesh(new THREE.BoxGeometry(iw, bh, 1.5), wallMat);
+  fwMesh.position.set(cx, baseY + bh / 2, -7.5 + id / 2);
+  fwMesh.castShadow = fwMesh.receiveShadow = true;
+  scene.add(fwMesh);
 
-  // Sloped floor
-  const floorGeo = new THREE.PlaneGeometry(innerWidth - wallT * 2, innerDepth - wallT * 2, 16, 16);
+  // Back wall (-Z side)
+  const bwMesh = new THREE.Mesh(new THREE.BoxGeometry(iw, bh, 1.5), wallMat);
+  bwMesh.position.set(cx, baseY + bh / 2, -7.5 - id / 2);
+  bwMesh.castShadow = bwMesh.receiveShadow = true;
+  scene.add(bwMesh);
+
+  // Left wall (-X side)
+  const lwMesh = new THREE.Mesh(new THREE.BoxGeometry(1.5, bh, id), wallMat);
+  lwMesh.position.set(cx - iw / 2, baseY + bh / 2, -7.5);
+  lwMesh.castShadow = lwMesh.receiveShadow = true;
+  scene.add(lwMesh);
+
+  // Right wall (+X side)
+  const rwMesh = new THREE.Mesh(new THREE.BoxGeometry(1.5, bh, id), wallMat);
+  rwMesh.position.set(cx + iw / 2, baseY + bh / 2, -7.5);
+  rwMesh.castShadow = rwMesh.receiveShadow = true;
+  scene.add(rwMesh);
+
+  // Basin floor (flat, slightly sloped toward drain center)
+  const floorGeo = new THREE.PlaneGeometry(iw - 3, id - 3, 16, 16);
   floorGeo.rotateX(-Math.PI / 2);
   const pos = floorGeo.attributes.position;
-  const slopeDepth = 0.5;
   for (let i = 0; i < pos.count; i++) {
     const px = pos.getX(i);
     const pz = pos.getZ(i);
     const r = Math.hypot(px, pz);
-    const maxR = Math.max(innerWidth / 2, innerDepth / 2);
-    const drop = slopeDepth * (1 - r / maxR);
-    pos.setY(i, pos.getY(i) - drop);
+    const maxR = Math.max((iw - 3) / 2, (id - 3) / 2);
+    pos.setY(i, pos.getY(i) - 0.5 * (1 - r / maxR));
   }
   floorGeo.computeVertexNormals();
-  const floor = new THREE.Mesh(floorGeo, matBasinInterior());
+  const floor = new THREE.Mesh(floorGeo, wallMat);
   floor.position.set(cx, baseY + 0.3, -7.5);
   floor.receiveShadow = true;
   scene.add(floor);
 
-  // Chrome drain ring — sits ON the basin floor, centered on drain hole.
-  // Floor is at baseY + 0.3 (with slope center slightly lower).
-  // Ring top face flush with floor center → ring.y = baseY + 0.3
+  // Chrome drain ring — ON the floor center
   const drainY = baseY + 0.3;
   const ringProfile: Array<[number, number]> = [
-    [0, 0],
-    [2.5, 0],
-    [2.6, 0.3],
-    [2.4, 0.5],
-    [2.2, 0.4],
-    [1.8, 0.2],
-    [0, 0.2],
+    [0, 0], [2.5, 0], [2.6, 0.3], [2.4, 0.5],
+    [2.2, 0.4], [1.8, 0.2], [0, 0.2],
   ];
   const ring = new THREE.Mesh(latheProfile(ringProfile, 36), matChrome());
   ring.position.set(cx, drainY, -7.5);
   ring.castShadow = true;
   scene.add(ring);
 
-  // Strainer disc — sits on top of ring, slightly above floor
+  // Strainer disc
   const strainer = new THREE.Mesh(beveledDisc(2.0, 0.15, 0.05, 32), matChrome());
   strainer.position.set(cx, drainY + 0.2, -7.5);
   scene.add(strainer);
-  // Strainer slots (8 thin radial)
-  for (let i = 0; i < 8; i++) {
-    const angle = (i / 8) * Math.PI * 2;
-    const slot = new THREE.Mesh(
-      new THREE.BoxGeometry(0.12, 0.05, 1.6),
-      new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.7 }),
-    );
-    slot.position.set(cx + Math.cos(angle) * 0.2, drainY + 0.25, -7.5 + Math.sin(angle) * 0.2);
-    slot.rotation.y = angle;
-    scene.add(slot);
-  }
 
-  // Drain throat — goes DOWN from floor into cabinet void
-  // Positioned slightly behind center (toward backsplash) to clear cabinet divider
+  // Drain throat going down
   const drainThroat = new THREE.Mesh(
     new THREE.CylinderGeometry(1.8, 1.8, 3.0, 24),
     new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.7, metalness: 0.3 }),
@@ -1043,11 +973,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
 
   const ctGeo = new THREE.ExtrudeGeometry(ctShape, {
     depth: T_CT,
-    bevelEnabled: true,
-    bevelThickness: 0.4,
-    bevelSize: 0.4,
-    bevelSegments: 4,
-    curveSegments: 12,
+    bevelEnabled: false,
   });
   ctGeo.rotateX(-Math.PI / 2);
   ctGeo.translate(0, T_CT, 0);
