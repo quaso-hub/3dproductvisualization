@@ -1,81 +1,56 @@
-# SESSION HANDOFF — 2026-05-27 22:18 UTC
+# SESSION HANDOFF — 2026-05-27 22:59 UTC
 
 > Auto-generated. Baca ini di awal sesi baru sebelum ngapa-ngapain.
 
 ## TL;DR
 
 **Branch:** `copilot/vscode1772805676982`
-**Last commit:** `6fd3ff4` — feat(ceiling): panel lift animation
+**Last commit:** `89e21ad` — fix: PACS exploded GAP, ScrubSink mirror frame, drain ring position
 
 ## Commits sesi ini (2026-05-27)
 
-- `0e00db2` Highlight rollout Exploded batch 1 (Hermetic+Curving+RAG+Laf)
-- `a7b96bb` Highlight rollout Exploded batch 2 (Pacs+PassBox+ScrubSink+Ceiling+Surgical)
-- `2d33178` Highlight rollout Assembled (Laf+RAG+Ceiling)
-- `b7fc527` Lazy loading + performance optimization system
-- `d82dc30` HVAC BIM v2 + mobile overlay
-- `4163e9a` ViewerControls + useThreeScene + HermeticDoorLegend fixes
-- `47eba00` Item 8: PACS Cabinet exploded fix (camera)
-- `c0de9ce` Item 6: ScrubSink rebuild (Skytron/Belimed spec)
-- `4948082` Item 2B: PACS door swing animation (pivot groups)
-- `6fd3ff4` Item 2B: Ceiling Panel lift animation
+- `4948082` feat(pacs): door swing animation with pivot groups
+- `6fd3ff4` feat(ceiling): panel lift animation
+- `4a80ed7` docs: SESSION_HANDOFF update — Item 2B complete
+- `89e21ad` fix: PACS exploded GAP, ScrubSink mirror frame, drain ring position
 
 ## Open Items (urutan prioritas)
 
 | # | Item | Status | Notes |
 |---|---|---|---|
-| 7 | PassBox 2-pintu | ✅ DONE | Sudah benar |
-| 8 | PACS exploded fix | ✅ DONE | Camera fix |
-| 6 | ScrubSink rebuild | ✅ DONE | Skytron/Belimed spec |
 | 2B | PACS door swing | ✅ DONE | Pivot groups, lerp 90° |
 | 2B | Ceiling Panel lift | ✅ DONE | Lerp +120mm Y |
+| PACS Exploded | GAP terlalu kecil | ✅ DONE | GAP=80, GAP_Z=70, GAP_TOP=50 |
+| ScrubSink | Mirror frame keluar | ✅ DONE | Ganti ExtrudeGeometry → BoxGeometry |
+| ScrubSink | Drain ring di bawah floor | ✅ DONE | drainY = baseY + 0.3 |
 | 9 | HVAC accuracy review | ❌ TODO | |
 | V | Vibe upgrade | ❌ TODO | 3D reference patterns |
 
-## Item 2B — Implementation Summary
+## Fix Summary (89e21ad)
 
-**PACS door swing (`PacsCabinetAssembled3D.tsx`):**
-- `leftPivot` at `LEFT_HINGE_X = -(OW/2 - WT) = -58`
-- `rightPivot` at `RIGHT_HINGE_X = +(OW/2 - WT) = +58`
-- All door geometry (leaf, glass, handle, hinges) built in pivot-local coords via `lx(worldX) = worldX - pivotX`
-- `onTick` lerps `rotation.y`: left → `+π/2`, right → `-π/2`
-- Button "🚪 Buka Pintu / Tutup Pintu" below ViewerControls
+**PACS Exploded (`PacsCabinetExploded3D.tsx`):**
+- `GAP = 80` (was 35) — pintu kiri di `-109`, kanan di `+109`, body edge di `±60` → clear
+- `GAP_Z = 70` — shelves di `OD/2 + 70 = 90`, pintu forward di `OD/2 + 35 = 55`
+- `GAP_TOP = 50` — top panel naik 50 unit
 
-**Ceiling Panel lift (`CeilingPanelAssembled3D.tsx`):**
-- Collects refs to all 4 panel meshes (3 solid PIR + 1 LAF perforated)
-- `onTick` lerps `position.y` from `Y_PANEL_CY=4.75` → `Y_PANEL_CY + 12 = 16.75`
-- Button "⬆ Angkat Panel / ⬇ Tutup Panel" below ViewerControls
+**ScrubSink mirror frame (`ScrubSinkAssembled3D.tsx`):**
+- Buang ExtrudeGeometry + rotasi ganda yang salah
+- Ganti 4 bar dengan BoxGeometry sederhana: top/bot `(MIRROR_W + FB*2) × FB × FD`, left/right `FB × MIRROR_H × FD`
+- Posisi tepat: left bar di `mx - MIRROR_W/2 - FB/2`, right di `mx + MIRROR_W/2 + FB/2`
 
-**Commit pattern (Windows git ref bug workaround):**
+**ScrubSink drain ring:**
+- `drainY = baseY + 0.3` (was `baseY - 0.5` → di bawah floor, tidak kelihatan)
+- Ring, strainer, slots semua di `drainY` atau sedikit di atasnya
+- Throat di `drainY - 1.5` (turun ke bawah floor)
+
+## Commit pattern (Windows git ref bug workaround)
+
 ```powershell
 git add <file>
 $tree = git write-tree
 $parent = "<prev-sha>"
 $sha = git commit-tree $tree -p $parent -m "<msg>"
 [System.IO.File]::WriteAllText((Resolve-Path ".git\refs\heads\copilot\vscode1772805676982"), "$sha`n")
-```
-
-## Vibe Upgrade Research Results
-
-5 referensi sudah di-research. Key techniques:
-
-| Teknik | Source | Difficulty |
-|---|---|---|
-| Lenis smooth scroll | semua | Easy |
-| Scroll-driven camera path | digitalists | Medium |
-| FBO scene transition | shader.se | Hard (2-3 days) |
-| Fresnel ShaderMaterial SS | digitalists | Easy |
-| Selective bloom emissive | shader.se | Medium |
-| Per-product accent colors | NRG | Easy |
-| Canvas image sequence hero | eatnaked + vaonis | Medium |
-| `camera.setViewOffset` | digitalists | Easy |
-| Clip-path wipe reveals | NRG | Easy |
-
-**Color palette steal:**
-```
-Background: #f6f7f3  (warm off-white)
-Dark:       #261d26  (aubergine)
-Per-product accent colors
 ```
 
 ## Stack Reminder
@@ -86,7 +61,24 @@ Per-product accent colors
 - `useThreeScene` + `useHighlightController` hooks
 - Branch: `copilot/vscode1772805676982`
 - Build: `npx vite build --outDir dist-verify --emptyOutDir`
-- Ref fix pattern: `[System.IO.File]::WriteAllText($refPath, "$sha\n")`
+
+## Vibe Upgrade Research Results
+
+| Teknik | Difficulty |
+|---|---|
+| Lenis smooth scroll | Easy |
+| Fresnel ShaderMaterial | Easy |
+| Per-product accent colors | Easy |
+| Scroll-driven camera path | Medium |
+| Selective bloom emissive | Medium |
+| Canvas image sequence hero | Medium |
+| FBO scene transition | Hard |
+
+**Color palette:**
+```
+Background: #f6f7f3  (warm off-white)
+Dark:       #261d26  (aubergine)
+```
 
 ## Failsafe Rules
 
