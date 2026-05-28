@@ -309,73 +309,45 @@ function buildSculptedPTrap(scene: THREE.Object3D, cx: number, fromY: number, to
   scene.add(cap);
 }
 
-// ── Sculpted faucet — gooseneck ────────────────────────────────
+// ── Faucet — copas dari exploded view (terbukti bagus) ─────────
 
 function buildSculptedFaucet(scene: THREE.Object3D, fX: number): void {
   const chrome = matChrome();
-  const BASE_Z = -22;   // deck mount behind basin
-  const BASE_Y = Y_CT_TOP;  // 80 — sits on countertop
+  const baseY = Y_CT_TOP;  // 80 — sits on countertop
+  const BASE_Z = -20;      // deck mount behind basin
 
-  // Mounting flange
-  const flangeProfile: Array<[number, number]> = [
-    [0,0],[2.4,0],[2.4,0.4],[2.2,0.6],[1.8,0.7],[1.4,0.9],[1.4,1.5],[0,1.5],
-  ];
-  const flange = new THREE.Mesh(latheProfile(flangeProfile, 24), chrome);
-  flange.position.set(fX, BASE_Y, BASE_Z);
-  flange.castShadow = true;
-  scene.add(flange);
+  // Base cylinder
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 6, 14), chrome);
+  base.position.set(fX, baseY + 3, BASE_Z);
+  base.castShadow = true;
+  scene.add(base);
 
-  // Vertical column — 120mm tall (12u)
-  const COL_H = 12;
-  const col = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.2, COL_H, 20), chrome);
-  col.position.set(fX, BASE_Y + 1 + COL_H / 2, BASE_Z);
-  col.castShadow = true;
-  scene.add(col);
+  // Gooseneck — CatmullRomCurve3 + TubeGeometry (sama persis dengan exploded)
+  const neckPath = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(fX, baseY + 6,  BASE_Z),
+    new THREE.Vector3(fX, baseY + 18, BASE_Z + 2),
+    new THREE.Vector3(fX, baseY + 24, BASE_Z + 10),
+    new THREE.Vector3(fX, baseY + 20, BASE_Z + 18),
+  ], false, 'catmullrom', 0.5);
+  const neckGeo = new THREE.TubeGeometry(neckPath, 32, 0.8, 10, false);
+  const neck = new THREE.Mesh(neckGeo, chrome);
+  neck.castShadow = true;
+  scene.add(neck);
 
-  // Gooseneck arch — 7 control points for smooth S-curve
-  // Column top at (fX, BASE_Y+1+COL_H, BASE_Z) = (fX, 93, -22)
-  // Tip at (fX, 96, -7.5) — 140mm above countertop, over basin center
-  const colTop = BASE_Y + 1 + COL_H; // 93
-  const TIP_Y = 96;
-  const TIP_Z = -7.5;
-  const archPoints = [
-    new THREE.Vector3(fX, colTop,      BASE_Z),       // column top
-    new THREE.Vector3(fX, colTop + 2,  BASE_Z),       // rise straight up
-    new THREE.Vector3(fX, colTop + 5,  BASE_Z + 4),   // start curving forward
-    new THREE.Vector3(fX, colTop + 7,  BASE_Z + 9),   // mid arch
-    new THREE.Vector3(fX, colTop + 6,  BASE_Z + 12),  // past peak, descending
-    new THREE.Vector3(fX, TIP_Y + 1,   TIP_Z + 3),    // approaching tip
-    new THREE.Vector3(fX, TIP_Y,       TIP_Z),        // tip over basin
-  ];
-  const arch = new THREE.Mesh(smoothTube(archPoints, 0.9, 48, 16), chrome);
-  arch.castShadow = true;
-  scene.add(arch);
-
-  // Aerator (tapered disc at tip, pointing down)
-  const aeratorProfile: Array<[number, number]> = [
-    [0,0],[1.2,0],[1.1,0.3],[0.8,0.7],[0,0.7],
-  ];
-  const aerator = new THREE.Mesh(latheProfile(aeratorProfile, 20), chrome);
-  aerator.position.set(fX, TIP_Y - 0.7, TIP_Z);
+  // Aerator at tip
+  const aerator = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.0, 3, 12), chrome);
+  aerator.position.set(fX, baseY + 18, BASE_Z + 19);
+  aerator.castShadow = true;
   scene.add(aerator);
 
-  // IR sensor dome (facing user, +Z direction)
-  const dome = new THREE.Mesh(
-    new THREE.SphereGeometry(0.8, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-    new THREE.MeshPhysicalMaterial({ color: 0x1a1a1a, roughness: 0.4, metalness: 0.3, clearcoat: 0.4 }),
+  // IR sensor
+  const sensor = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.8, 0.8, 1, 10),
+    new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.6 }),
   );
-  dome.rotation.x = Math.PI / 2;
-  dome.position.set(fX, BASE_Y + 6, BASE_Z + 1.0);
-  dome.castShadow = true;
-  scene.add(dome);
-
-  // LED dot
-  const dot = new THREE.Mesh(
-    new THREE.SphereGeometry(0.16, 12, 8),
-    new THREE.MeshStandardMaterial({ color: 0xff4444, emissive: new THREE.Color(0xff2020), emissiveIntensity: 1.2 }),
-  );
-  dot.position.set(fX, BASE_Y + 6, BASE_Z + 1.8);
-  scene.add(dot);
+  sensor.rotation.x = Math.PI / 2;
+  sensor.position.set(fX, baseY + 4, BASE_Z + 2);
+  scene.add(sensor);
 }
 
 // ── Sculpted door with reveal frame + bar pull handle ──────────
