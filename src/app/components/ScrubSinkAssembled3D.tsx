@@ -309,87 +309,72 @@ function buildSculptedPTrap(scene: THREE.Object3D, cx: number, fromY: number, to
   scene.add(cap);
 }
 
-// ── Sculpted faucet — gooseneck tube langsung, tidak pakai faucetSpout helper ─
+// ── Sculpted faucet — gooseneck ────────────────────────────────
 
 function buildSculptedFaucet(scene: THREE.Object3D, fX: number): void {
   const chrome = matChrome();
-  const baseY = Y_CT_TOP + 1;
-  const FAUCET_BASE_Z = -22;
-  const tipY = 94;
-  const tipZ = -7.5;
+  const BASE_Z = -22;   // deck mount behind basin
+  const BASE_Y = Y_CT_TOP;  // 80 — sits on countertop
 
-  // Mounting flange (Lathe — chamfered base) sits on countertop
+  // Mounting flange
   const flangeProfile: Array<[number, number]> = [
-    [0, 0],
-    [2.4, 0],
-    [2.4, 0.4],
-    [2.2, 0.6],
-    [1.8, 0.7],
-    [1.4, 0.9],
-    [1.4, 1.5],
-    [0, 1.5],
+    [0,0],[2.4,0],[2.4,0.4],[2.2,0.6],[1.8,0.7],[1.4,0.9],[1.4,1.5],[0,1.5],
   ];
   const flange = new THREE.Mesh(latheProfile(flangeProfile, 24), chrome);
-  flange.position.set(fX, Y_CT_TOP, FAUCET_BASE_Z);
+  flange.position.set(fX, BASE_Y, BASE_Z);
   flange.castShadow = true;
   scene.add(flange);
 
-  // Vertical column (cylinder) from countertop up to arch start
-  const colH = 14;
-  const colMesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.1, 1.3, colH, 20),
-    chrome,
-  );
-  colMesh.position.set(fX, baseY + colH / 2, FAUCET_BASE_Z);
-  colMesh.castShadow = true;
-  scene.add(colMesh);
+  // Vertical column — 120mm tall (12u)
+  const COL_H = 12;
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.2, COL_H, 20), chrome);
+  col.position.set(fX, BASE_Y + 1 + COL_H / 2, BASE_Z);
+  col.castShadow = true;
+  scene.add(col);
 
-  // Gooseneck arch — smooth CatmullRom tube dengan titik yang masuk akal
-  // Mulai dari atas kolom, arch ke depan, turun ke basin center
+  // Gooseneck arch — 7 control points for smooth S-curve
+  // Column top at (fX, BASE_Y+1+COL_H, BASE_Z) = (fX, 93, -22)
+  // Tip at (fX, 96, -7.5) — 140mm above countertop, over basin center
+  const colTop = BASE_Y + 1 + COL_H; // 93
+  const TIP_Y = 96;
+  const TIP_Z = -7.5;
   const archPoints = [
-    new THREE.Vector3(fX, baseY + colH,          FAUCET_BASE_Z),      // top of column
-    new THREE.Vector3(fX, baseY + colH + 4,       FAUCET_BASE_Z),      // short vertical rise
-    new THREE.Vector3(fX, baseY + colH + 8,       FAUCET_BASE_Z + 5),  // start arch forward
-    new THREE.Vector3(fX, baseY + colH + 10,      FAUCET_BASE_Z + 10), // peak of arch
-    new THREE.Vector3(fX, tipY + 2,               tipZ + 4),           // descending
-    new THREE.Vector3(fX, tipY,                   tipZ),               // tip over basin
+    new THREE.Vector3(fX, colTop,      BASE_Z),       // column top
+    new THREE.Vector3(fX, colTop + 2,  BASE_Z),       // rise straight up
+    new THREE.Vector3(fX, colTop + 5,  BASE_Z + 4),   // start curving forward
+    new THREE.Vector3(fX, colTop + 7,  BASE_Z + 9),   // mid arch
+    new THREE.Vector3(fX, colTop + 6,  BASE_Z + 12),  // past peak, descending
+    new THREE.Vector3(fX, TIP_Y + 1,   TIP_Z + 3),    // approaching tip
+    new THREE.Vector3(fX, TIP_Y,       TIP_Z),        // tip over basin
   ];
-  const archTube = new THREE.Mesh(smoothTube(archPoints, 1.0, 48, 16), chrome);
-  archTube.castShadow = true;
-  scene.add(archTube);
+  const arch = new THREE.Mesh(smoothTube(archPoints, 0.9, 48, 16), chrome);
+  arch.castShadow = true;
+  scene.add(arch);
 
-  // Aerator at tip (tapered disc pointing down)
+  // Aerator (tapered disc at tip, pointing down)
   const aeratorProfile: Array<[number, number]> = [
-    [0, 0],
-    [1.3, 0],
-    [1.2, 0.4],
-    [0.9, 0.8],
-    [0, 0.8],
+    [0,0],[1.2,0],[1.1,0.3],[0.8,0.7],[0,0.7],
   ];
   const aerator = new THREE.Mesh(latheProfile(aeratorProfile, 20), chrome);
-  aerator.position.set(fX, tipY - 0.8, tipZ);
+  aerator.position.set(fX, TIP_Y - 0.7, TIP_Z);
   scene.add(aerator);
 
-  // IR sensor dome on front face of column
-  const sensorDome = new THREE.Mesh(
-    new THREE.SphereGeometry(0.85, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+  // IR sensor dome (facing user, +Z direction)
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.8, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2),
     new THREE.MeshPhysicalMaterial({ color: 0x1a1a1a, roughness: 0.4, metalness: 0.3, clearcoat: 0.4 }),
   );
-  sensorDome.rotation.x = Math.PI / 2;
-  sensorDome.position.set(fX, baseY + 8, FAUCET_BASE_Z + 1.0);
-  sensorDome.castShadow = true;
-  scene.add(sensorDome);
+  dome.rotation.x = Math.PI / 2;
+  dome.position.set(fX, BASE_Y + 6, BASE_Z + 1.0);
+  dome.castShadow = true;
+  scene.add(dome);
 
-  // Sensor LED dot
+  // LED dot
   const dot = new THREE.Mesh(
-    new THREE.SphereGeometry(0.18, 12, 8),
-    new THREE.MeshStandardMaterial({
-      color: 0xff4444,
-      emissive: new THREE.Color(0xff2020),
-      emissiveIntensity: 1.2,
-    }),
+    new THREE.SphereGeometry(0.16, 12, 8),
+    new THREE.MeshStandardMaterial({ color: 0xff4444, emissive: new THREE.Color(0xff2020), emissiveIntensity: 1.2 }),
   );
-  dot.position.set(fX, baseY + 8, FAUCET_BASE_Z + 1.85);
+  dot.position.set(fX, BASE_Y + 6, BASE_Z + 1.8);
   scene.add(dot);
 }
 
