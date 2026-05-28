@@ -1,58 +1,53 @@
-# SESSION HANDOFF — 2026-05-27 23:38 UTC
+# SESSION HANDOFF — 2026-05-28 00:13 UTC
 
 > Auto-generated. Baca ini di awal sesi baru sebelum ngapa-ngapain.
 
 ## TL;DR
 
 **Branch:** `copilot/vscode1772805676982`
-**Last commit:** `8e09ddd` — fix(scrubsink): basin walls aligned to countertop hole edges
+**Last commit:** `277f38c` — fix(scrubsink): rail position flush Y_CT_TOP
 
-## Commits sesi ini (2026-05-27)
+## Commits sesi ini (2026-05-27/28)
 
 - `4948082` feat(pacs): door swing animation
 - `6fd3ff4` feat(ceiling): panel lift animation
 - `89e21ad` fix: PACS exploded GAP=80, mirror frame, drain ring
-- `97e88a9` fix(scrubsink): cabinet-countertop gap, faucet gooseneck
-- `1e6353c` fix(scrubsink): basin walls simple boxes, countertop no bevel
+- `97e88a9` fix(scrubsink): cabinet-countertop gap, faucet gooseneck v1
+- `1e6353c` fix(scrubsink): basin walls simple boxes
 - `54d91a0` fix(ceiling): panel flush frame bottom
 - `8e09ddd` fix(scrubsink): basin walls aligned to countertop hole edges
+- `906afb8` fix(scrubsink): cabinet walls to Y_CT_TOP, canopy flush backsplash
+- `14c6120` fix(scrubsink): faucet gooseneck smooth 7-point arch
+- `277f38c` fix(scrubsink): rail position flush Y_CT_TOP
 
-## Status per produk
+## ScrubSink — State Aktual (277f38c)
 
-| Produk | Status | Notes |
-|---|---|---|
-| ScrubSink | ⚠️ Perlu verify | Basin walls sekarang aligned ke hole edges |
-| PACS Cabinet | ✅ | Door swing + exploded GAP=80 |
-| Ceiling Panel | ✅ | Panel flush + lift animation |
+**Konstanta kunci:**
+- `W=160, D=60, T_BASE=6, Y_CT_TOP=80, BP_Z=-29`
 
-## ScrubSink — State Aktual (8e09ddd)
+**Cabinet:** semua walls naik ke `Y_CT_TOP=80`, frontPanel height = `Y_CT_TOP - T_BASE = 74`
 
-**Konstanta:**
-- `W=160, D=60, T_BASE=6, T_CAB=70, T_CT=4`
-- `Y_CAB_TOP=76, Y_CT_TOP=80, BP_Z=-29`
+**Countertop:** `bevelEnabled:false`, bottom di `Y_CT_TOP - T_CT = 76`, top di `80`
 
-**Cabinet top:** `topShelf` center di `Y_CAB_TOP - 0.5 = 75.5`, top face di `76` = countertop bottom ✓
+**Basin holes (countertop):** center `(cx, -7.5)`, X: `cx±30`, Z: `-30` to `+15`
 
-**Countertop:** `bevelEnabled: false`, `position.y = Y_CT_TOP - T_CT = 76`, top face di `80` ✓
+**Basin walls:** outer faces tepat di hole edges
+- Front: Z=+15 (outer), center Z=14.25
+- Back: Z=-30 (outer), center Z=-29.25
+- Left/Right: X=cx±30 (outer), center cx±29.25
+- Height: 25u, from Y=55 to Y=80
 
-**Basin hole (countertop):** center `(cx, -7.5)`, size `60×45`
-- X: `cx-30` to `cx+30`
-- Z: `-30` to `+15`
+**Faucet:** kolom 12u + arch 7-point CatmullRom, base Z=-22, tip (fX, 96, -7.5)
 
-**Basin walls (aligned ke hole edges):**
-- Front wall outer face di Z=+15, center di Z=14.25
-- Back wall outer face di Z=-30, center di Z=-29.25
-- Left wall outer face di X=cx-30, center di X=cx-29.25
-- Right wall outer face di X=cx+30, center di X=cx+29.25
-- Height: `bh=25`, from `baseY=55` to `Y_CT_TOP=80`
+**Canopy:** `CANOPY_BOT_Y = BS_TOP_Y = 155`, duduk langsung di atas backsplash
 
-**Faucet:** kolom vertikal + arch smoothTube 6 titik, base di Z=-22
+**Rail:** di `Y_CT_TOP - 0.6 = 79.4` (was Y_CAB_TOP-0.6=75.4)
 
-**Open issues (belum dikonfirmasi user):**
-- Gap cabinet-countertop masih ada? (topShelf sudah di 75.5)
-- Basin walls sudah flush dengan hole?
+## Open Issues (belum dikonfirmasi visual)
+
+- "Bekas basin" masih ada? → kemungkinan rail lama atau cove geometry
 - Faucet arch sudah natural?
-- "Canopy melayang" = countertop atau ceiling panel?
+- Gap cabinet-countertop sudah hilang?
 
 ## Commit pattern (Windows git ref bug)
 
