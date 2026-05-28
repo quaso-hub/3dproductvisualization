@@ -888,52 +888,41 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
   const cabPolish = matSSPolished();
 
   // Back wall
-  const backWall = new THREE.Mesh(new THREE.BoxGeometry(W, T_CAB, 1), cabMatte);
-  backWall.position.set(0, T_BASE + T_CAB / 2, -D / 2 + 0.5);
+  const backWall = new THREE.Mesh(new THREE.BoxGeometry(W, Y_CT_TOP - T_BASE, 1), cabMatte);
+  backWall.position.set(0, T_BASE + (Y_CT_TOP - T_BASE) / 2, -D / 2 + 0.5);
   backWall.castShadow = backWall.receiveShadow = true;
   cabinetGroup.add(backWall);
-  // Top — top face harus tepat di Y_CT_TOP - T_CT = 76 (countertop bottom)
-  // height=1, center di 75.5 → top face di 76 ✓
-  const topShelf = new THREE.Mesh(new THREE.BoxGeometry(W, 1, D), cabMatte);
-  topShelf.position.set(0, Y_CAB_TOP - 0.5, 0);
-  topShelf.castShadow = topShelf.receiveShadow = true;
-  cabinetGroup.add(topShelf);
-  // Left side
-  const leftSide = new THREE.Mesh(new THREE.BoxGeometry(1, T_CAB, D), cabMatte);
-  leftSide.position.set(-W / 2 + 0.5, T_BASE + T_CAB / 2, 0);
+  // Top shelf — sekarang digantikan topShelf2 di bawah, hapus yang lama
+  // Left side — naik ke Y_CT_TOP
+  const leftSide = new THREE.Mesh(new THREE.BoxGeometry(1, Y_CT_TOP - T_BASE, D), cabMatte);
+  leftSide.position.set(-W / 2 + 0.5, T_BASE + (Y_CT_TOP - T_BASE) / 2, 0);
   leftSide.castShadow = leftSide.receiveShadow = true;
   cabinetGroup.add(leftSide);
-  // Right side
-  const rightSide = new THREE.Mesh(new THREE.BoxGeometry(1, T_CAB, D), cabMatte);
-  rightSide.position.set(W / 2 - 0.5, T_BASE + T_CAB / 2, 0);
+  // Right side — naik ke Y_CT_TOP
+  const rightSide = new THREE.Mesh(new THREE.BoxGeometry(1, Y_CT_TOP - T_BASE, D), cabMatte);
+  rightSide.position.set(W / 2 - 0.5, T_BASE + (Y_CT_TOP - T_BASE) / 2, 0);
   rightSide.castShadow = rightSide.receiveShadow = true;
   cabinetGroup.add(rightSide);
   // Center vertical divider
-  const divider = new THREE.Mesh(new THREE.BoxGeometry(1.2, T_CAB - 4, D - 2), cabMatte);
-  divider.position.set(0, T_BASE + T_CAB / 2, 0);
+  const divider = new THREE.Mesh(new THREE.BoxGeometry(1.2, Y_CT_TOP - T_BASE - 4, D - 2), cabMatte);
+  divider.position.set(0, T_BASE + (Y_CT_TOP - T_BASE - 4) / 2 + 2, 0);
   divider.castShadow = divider.receiveShadow = true;
   cabinetGroup.add(divider);
 
-  // 4 hinged doors REMOVED 2026-05-25 per research findings (see
-  // docs/research/2026-05-25-scrub-sink-references.md). Real surgical
-  // scrub sinks NEVER have hinged doors with D-pulls — they have either
-  // seamless welded SS front panels (Asian/Indonesian style — Dolson
-  // Nusantara, Rooe BSS100) or removable hidden-latch kick panels (US/EU
-  // style — Belimed, MAC Medical, Skytron). Our reference target is the
-  // Dolson DSR-style 1600×573×1600mm freestanding unit, so we use a
-  // seamless welded SS front face.
-  //
-  // Front face: single welded SS panel from base to countertop bottom,
-  // spanning the full width. No vertical reveal lines, no handles.
-  // Brushed #4 finish (matSSMatte) per research Q8 — mirror polish is
-  // decorative-only and shows water spots in clinical use.
+  // Front face panel — naik sampai Y_CT_TOP supaya tidak ada gap dengan countertop
   const frontPanel = new THREE.Mesh(
-    new THREE.BoxGeometry(W - 0.5, T_CAB - 1, 1),
+    new THREE.BoxGeometry(W - 0.5, Y_CT_TOP - T_BASE, 1),
     cabMatte,
   );
-  frontPanel.position.set(0, T_BASE + (T_CAB - 1) / 2 + 0.5, D / 2 - 0.5);
+  frontPanel.position.set(0, T_BASE + (Y_CT_TOP - T_BASE) / 2, D / 2 - 0.5);
   frontPanel.castShadow = frontPanel.receiveShadow = true;
   cabinetGroup.add(frontPanel);
+
+  // Top shelf — naik ke Y_CT_TOP supaya flush dengan countertop bottom
+  const topShelf2 = new THREE.Mesh(new THREE.BoxGeometry(W, T_CT, D), cabMatte);
+  topShelf2.position.set(0, Y_CT_TOP - T_CT / 2, 0);
+  topShelf2.castShadow = topShelf2.receiveShadow = true;
+  cabinetGroup.add(topShelf2);
 
   // Subtle horizontal seam line at base — purely visual reference for
   // where a removable kick panel would be on a US-spec unit. ~150mm above
@@ -1103,34 +1092,26 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
   canopyGroup.userData.partId = 'canopy';
   scene.add(canopyGroup);
 
-  // GEOMETRY FIX 2026-05-27: canopy was at Y=152.5 which overlapped the
-  // backsplash top (Y=80+75=155). Real spec: overhead shelf sits at 1680mm
-  // from floor = 168u. Canopy body is 5u tall so center at Y=170.5.
-  // Support posts connect backsplash top (Y=155) to canopy bottom (Y=168).
-  const CANOPY_BOT_Y = 168;
-  const CANOPY_CY    = CANOPY_BOT_Y + 2.5; // center of 5u-tall canopy body
-  const CANOPY_Z     = -22;                 // same depth as backsplash zone
+  // Canopy duduk langsung di atas backsplash top (Y=155), tidak ada gap
+  // Backsplash: bottom Y=80, height=75 → top Y=155
+  const BS_TOP_Y   = 80 + 75;          // 155
+  const CANOPY_BOT_Y = BS_TOP_Y;        // 155 — no gap
+  const CANOPY_H   = 5;
+  const CANOPY_CY  = CANOPY_BOT_Y + CANOPY_H / 2;  // 157.5
+  const CANOPY_Z   = -22;
 
-  // Vertical support posts — connect backsplash top to canopy underside
-  const supportPostGeo = new THREE.CylinderGeometry(0.6, 0.6, CANOPY_BOT_Y - 155, 16);
-  for (const sx of [-78, 78]) {
-    const post = new THREE.Mesh(supportPostGeo, matSSPolished());
-    post.position.set(sx, 155 + (CANOPY_BOT_Y - 155) / 2, CANOPY_Z);
-    post.castShadow = true;
-    canopyGroup.add(post);
-  }
-
-  const canopy = new THREE.Mesh(roundedBox(164, 5, 14, 0.4, 2), matSSPolished());
+  // No support posts needed — canopy sits directly on backsplash top
+  const canopy = new THREE.Mesh(roundedBox(164, CANOPY_H, 14, 0.4, 2), matSSPolished());
   canopy.position.set(0, CANOPY_CY, CANOPY_Z);
   canopy.castShadow = true;
   canopyGroup.add(canopy);
 
-  // LED strip (BoxGeometry — flat strip on underside of canopy)
+  // LED strip on underside of canopy
   const led = new THREE.Mesh(new THREE.BoxGeometry(158, 0.8, 4), matLEDStrip());
   led.position.set(0, CANOPY_BOT_Y - 0.4, CANOPY_Z - 3);
   canopyGroup.add(led);
 
-  // UV tube (CylinderGeometry)
+  // UV tube
   const uvTube = new THREE.Mesh(
     new THREE.CylinderGeometry(0.7, 0.7, 150, 16),
     matUVTube(),
@@ -1141,13 +1122,7 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
 
   // UV end caps
   const endCapGeo = latheProfile(
-    [
-      [0, -0.3],
-      [1.0, -0.3],
-      [1.0, 0.4],
-      [0.7, 0.6],
-      [0, 0.6],
-    ],
+    [[0, -0.3], [1.0, -0.3], [1.0, 0.4], [0.7, 0.6], [0, 0.6]],
     14,
   );
   for (const ex of [-76, 76]) {
