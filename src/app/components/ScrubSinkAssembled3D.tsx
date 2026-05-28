@@ -909,17 +909,15 @@ function buildScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void {
   topShelf2.castShadow = topShelf2.receiveShadow = true;
   cabinetGroup.add(topShelf2);
 
-  // Subtle horizontal seam line at base — purely visual reference for
-  // where a removable kick panel would be on a US-spec unit. ~150mm above
-  // floor (Y = 18). Reads as a brushed seam, not a door reveal.
+  // Subtle horizontal seam line at base
   const seamGeo = new THREE.BoxGeometry(W - 1, 0.15, 1.2);
   const seam = new THREE.Mesh(seamGeo, matSSPolished());
   seam.position.set(0, 18, D / 2);
   cabinetGroup.add(seam);
 
-  // Door rail at top of cabinet (thin polished accent — BoxGeometry)
+  // Door rail at top of cabinet — naik ke Y_CT_TOP supaya flush
   const rail = new THREE.Mesh(new THREE.BoxGeometry(W, 1.2, 1), cabPolish);
-  rail.position.set(0, Y_CAB_TOP - 0.6, D / 2 + 0.6);
+  rail.position.set(0, Y_CT_TOP - 0.6, D / 2 + 0.6);
   cabinetGroup.add(rail);
 
   // ── Countertop with proper basin holes (rounded corners) ──
