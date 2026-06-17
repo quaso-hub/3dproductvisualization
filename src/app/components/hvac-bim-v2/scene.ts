@@ -182,6 +182,11 @@ export function buildHvacScene(scene: THREE.Scene): SceneBundle {
   buildMaintenance(scene, bundle);
   buildContext(scene, bundle);
 
+  // ── MISSING items from kritik_status (2026-05-24) ──
+  buildCFMLabels(scene, bundle);
+  buildDuctSizeAndElevationTags(scene, bundle);
+  buildAGSSStackLabel(scene, bundle);
+
   registerLabels(bundle);
   return bundle;
 }
@@ -1698,4 +1703,131 @@ function buildContext(scene: THREE.Scene, bundle: SceneBundle): void {
   box(bag, bundle, 0.85, 0.02, -0.6, 0.36, 0.025, 0.22, C.steel, ft, { roughness: 0.4, metalness: 0.55 });
   // Tray
   box(bag, bundle, 0.85, 0.94, -0.6, 0.4, 0.015, 0.3, C.steel, ft, { roughness: 0.2, metalness: 0.65 });
+}
+
+// ─────────────────────────────────────────────────────────────
+// MISSING ITEM 1: CFM inline labels on duct flow arrows
+// Adds CSS2DObject labels showing CFM values directly on the
+// supply, return, and AGSS exhaust duct paths.
+// ─────────────────────────────────────────────────────────────
+
+function addInlineLabel(
+  parent: THREE.Group,
+  text: string,
+  pos: THREE.Vector3,
+  accent: string,
+  fontSize = '9px',
+): void {
+  const div = document.createElement('div');
+  div.textContent = text;
+  div.style.cssText = [
+    'pointer-events:none',
+    'white-space:nowrap',
+    'border-radius:2px',
+    'padding:2px 6px',
+    'font-family:"JetBrains Mono", ui-monospace, monospace',
+    `font-size:${fontSize}`,
+    'font-weight:600',
+    'letter-spacing:0.02em',
+    `color:${accent}`,
+    'background:rgba(255,255,255,0.88)',
+    `border:1px solid ${accent}40`,
+  ].join(';');
+  const label = new CSS2DObject(div);
+  label.position.copy(pos);
+  parent.add(label);
+}
+
+function buildCFMLabels(scene: THREE.Scene, bundle: SceneBundle): void {
+  const supplyBag = bundle.bags['supplyDuct'];
+  const returnBag = bundle.bags['returnDuct'];
+  const exhaustBag = bundle.bags['exhaust'];
+
+  if (supplyBag) {
+    // Supply main duct CFM — mid-span
+    addInlineLabel(supplyBag.group, '3200 CFM', new THREE.Vector3(3.8, 3.18, 0.52), '#00bcd4');
+    // Supply riser CFM
+    addInlineLabel(supplyBag.group, '3200 CFM', new THREE.Vector3(6.35, 2.1, 0.52), '#00bcd4', '8px');
+  }
+
+  if (returnBag) {
+    // Return main duct CFM — mid-span
+    addInlineLabel(returnBag.group, '2450 CFM', new THREE.Vector3(1.5, 2.82, 0.52), '#e57373');
+    // Return riser CFM
+    addInlineLabel(returnBag.group, '1225 CFM ×2', new THREE.Vector3(-2.9, 1.8, 0.28), '#e57373', '8px');
+  }
+
+  if (exhaustBag) {
+    // AGSS exhaust CFM
+    addInlineLabel(exhaustBag.group, '420 CFM', new THREE.Vector3(5.0, 3.08, -2.48), '#ffa726');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// MISSING ITEM 2: Duct size + elevation tags on geometry
+// Adds CSS2DObject labels showing duct dimensions and elevation
+// at key points (AHU outlet, mid-span, LAF inlet, return risers).
+// ─────────────────────────────────────────────────────────────
+
+function buildDuctSizeAndElevationTags(scene: THREE.Scene, bundle: SceneBundle): void {
+  const supplyBag = bundle.bags['supplyDuct'];
+  const returnBag = bundle.bags['returnDuct'];
+
+  if (supplyBag) {
+    // Supply duct size at AHU outlet
+    addInlineLabel(supplyBag.group, '580×300', new THREE.Vector3(6.35, 3.12, 0.34), '#00bcd4', '8px');
+    // Elevation tag at mid-span
+    addInlineLabel(supplyBag.group, 'EL +2.94m', new THREE.Vector3(4.5, 3.12, 0.34), '#64748b', '8px');
+    // Duct size at LAF transition
+    addInlineLabel(supplyBag.group, '580→2400', new THREE.Vector3(0, 2.82, 0.34), '#00bcd4', '8px');
+  }
+
+  if (returnBag) {
+    // Return main duct size
+    addInlineLabel(returnBag.group, '460×240', new THREE.Vector3(1.5, 2.78, 0.34), '#e57373', '8px');
+    // Return riser size
+    addInlineLabel(returnBag.group, '160×160 riser', new THREE.Vector3(-2.9, 2.1, 0.28), '#e57373', '7px');
+    // Elevation at return main
+    addInlineLabel(returnBag.group, 'EL +2.58m', new THREE.Vector3(4.5, 2.78, 0.34), '#64748b', '8px');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// MISSING ITEM 3: AGSS dedicated exhaust stack label
+// The AGSS exhaust path already exists (buildExhaust), but it
+// lacks explicit labeling as a dedicated AGSS stack. This adds
+// a prominent CSS2DObject label and a "NO RECIRCULATION" badge
+// to make the AGSS path unmistakable during Q&A.
+// ─────────────────────────────────────────────────────────────
+
+function buildAGSSStackLabel(scene: THREE.Scene, bundle: SceneBundle): void {
+  const exhaustBag = bundle.bags['exhaust'];
+  if (!exhaustBag) return;
+
+  // AGSS stack label at rooftop discharge point
+  addInlineLabel(
+    exhaustBag.group,
+    'AGSS STACK — NO RECIRCULATION',
+    new THREE.Vector3(8.98, 5.28, -2.48),
+    '#ffa726',
+    '10px',
+  );
+
+  // Stack height marker
+  addInlineLabel(
+    exhaustBag.group,
+    'DISCHARGE +4.82m',
+    new THREE.Vector3(8.98, 4.5, -2.28),
+    '#64748b',
+    '8px',
+  );
+
+  // AGSS pickup label at OR ceiling
+  addInlineLabel(
+    exhaustBag.group,
+    'AGSS PICKUP (OR CEILING)',
+    new THREE.Vector3(0.92, 1.32, -0.25),
+    '#ffa726',
+    '8px',
+  );
 }
